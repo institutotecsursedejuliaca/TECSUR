@@ -1,65 +1,544 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect } from "react";
+import {
+  Search,
+  GraduationCap,
+  CreditCard,
+  BookOpen,
+  Menu,
+  X,
+  ChevronRight,
+  Cpu,
+  LogOut,
+  Wifi,
+  ScanLine,
+} from "lucide-react";
+import Image from "next/image";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { toast, Toaster } from "sonner";
+import ConsultaAdminView from "@/components/ConsultaAdminView";
+import DocentesView from "@/components/DocentesView";
+import PensionesView from "@/components/PensionesView";
+import AlumnosView from "@/components/AlumnosView";
+import ModulosView from "@/components/ModulosView";
+import IngresoView from "@/components/IngresoView";
+
+// ── Paleta TECSUR ─────────────────────────────────────────────
+// Azul acero   : #2a6db5
+// Cyan metálico: #4ab3d8
+// Azul profundo: #1a4a7a
+// Fondo oscuro : #060d18
+// -------------------------------------------------------------
+
+type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso";
+
+const navItems: {
+  id: View;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  badge?: string;
+}[] = [
+    { id: "ingreso", label: "Control de Ingreso", icon: ScanLine, description: "Asistencia por DNI" },
+    { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
+    { id: "consulta", label: "Consulta General", icon: Search, description: "Búsqueda por DNI" },
+    { id: "docentes", label: "Módulo Docentes", icon: GraduationCap, description: "Notas y asistencia" },
+    { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
+    { id: "modulos", label: "Módulos", icon: Cpu, description: "Cursos disponibles" },
+  ];
+
+export default function HomePage() {
+  const router = useRouter();
+  const [activeView, setActiveView] = useState<View>("consulta");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<View | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) { router.replace("/login"); return; }
+      setUserEmail(data.session.user?.email ?? null);
+    });
+  }, [router]);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    toast.success("Sesión cerrada correctamente");
+    setTimeout(() => { window.location.href = "/login"; }, 800);
+  }
+
+  const currentItem = navItems.find((n) => n.id === activeView)!;
+  const Icon = currentItem.icon;
+
+  // Initials from email
+  const initials = userEmail
+    ? userEmail.slice(0, 2).toUpperCase()
+    : "AD";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ background: "#060d18", fontFamily: "'DM Sans', sans-serif" }}
+    >
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: "#0e1f38",
+            color: "#e0eaf8",
+            border: "1px solid rgba(42,109,181,0.35)",
+            borderRadius: "10px",
+            fontSize: "13px",
+          },
+        }}
+      />
+
+      {/* ── Estilos globales ─────────────────────────────────── */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+        @keyframes sidebarIn {
+          from { opacity: 0; transform: translateX(-16px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes barShift {
+          0%   { background-position: 0% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes pulse-dot {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(74,179,216,0.4); }
+          50%       { box-shadow: 0 0 0 5px rgba(74,179,216,0); }
+        }
+        @keyframes shimmer {
+          0%        { transform: translateX(-100%); }
+          50%, 100% { transform: translateX(150%); }
+        }
+
+        /* ── nav items ── */
+        .ts-nav-item {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          width: 100%;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid transparent;
+          background: transparent;
+          cursor: pointer;
+          text-align: left;
+          transition: background .2s, border-color .2s, transform .15s;
+          overflow: hidden;
+        }
+        .ts-nav-item:hover {
+          background: rgba(42,109,181,0.1);
+          border-color: rgba(42,109,181,0.18);
+          transform: translateX(2px);
+        }
+        .ts-nav-item.active {
+          background: rgba(42,109,181,0.15);
+          border-color: rgba(74,179,216,0.3);
+        }
+        .ts-nav-item .shimmer-layer {
+          position: absolute; inset: 0;
+          background: linear-gradient(90deg, transparent 0%, rgba(74,179,216,0.08) 50%, transparent 100%);
+          transform: translateX(-100%);
+          pointer-events: none;
+        }
+        .ts-nav-item.active .shimmer-layer {
+          animation: shimmer 2.8s ease-in-out infinite;
+        }
+
+        /* ── sidebar accent bar ── */
+        .ts-active-bar {
+          position: absolute;
+          left: 0; top: 50%;
+          transform: translateY(-50%);
+          width: 3px;
+          height: 60%;
+          border-radius: 0 3px 3px 0;
+          background: linear-gradient(180deg, #4ab3d8, #2a6db5);
+          transition: height .2s, opacity .2s;
+        }
+
+        /* ── scrollbar ── */
+        .ts-scroll::-webkit-scrollbar { width: 4px; }
+        .ts-scroll::-webkit-scrollbar-track { background: transparent; }
+        .ts-scroll::-webkit-scrollbar-thumb {
+          background: rgba(42,109,181,0.25);
+          border-radius: 4px;
+        }
+
+        /* ── main fade ── */
+        .ts-view-fade {
+          animation: fadeUp .35s cubic-bezier(.16,1,.3,1) both;
+        }
+
+        /* ── logout btn ── */
+        .ts-logout {
+          display: flex; align-items: center; gap: 10px;
+          width: 100%; padding: 10px 12px;
+          border-radius: 10px; border: 1px solid transparent;
+          background: transparent; cursor: pointer; text-align: left;
+          transition: background .2s, border-color .2s;
+          color: #f87171; font-size: 13px; font-family: inherit;
+        }
+        .ts-logout:hover {
+          background: rgba(248,113,113,0.08);
+          border-color: rgba(248,113,113,0.2);
+        }
+      `}</style>
+
+      {/* ════════════════════════════════════════════════════════
+          SIDEBAR
+      ════════════════════════════════════════════════════════ */}
+      <aside
+        style={{
+          width: sidebarOpen ? 268 : 0,
+          minWidth: sidebarOpen ? 268 : 0,
+          transition: "width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1)",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          background: "rgba(8,16,34,0.97)",
+          borderRight: "1px solid rgba(42,109,181,0.18)",
+          backdropFilter: "blur(20px)",
+          position: "relative",
+          zIndex: 20,
+        }}
+      >
+        {/* barra superior animada */}
+        <div style={{
+          height: 3,
+          background: "linear-gradient(90deg, #1a4a7a, #2a6db5, #4ab3d8, #2a6db5, #1a4a7a)",
+          backgroundSize: "200% 100%",
+          animation: "barShift 3s linear infinite",
+          flexShrink: 0,
+        }} />
+
+        {/* ── Logo ── */}
+        <div
+          style={{
+            padding: "20px 20px 16px",
+            borderBottom: "1px solid rgba(42,109,181,0.12)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "center" }}>
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/img/white.png"
+              alt="TECSUR"
+              width={148}
+              height={56}
+              style={{
+                objectFit: "contain",
+                filter: "drop-shadow(0 2px 12px rgba(42,109,181,0.4))",
+              }}
+              priority
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
+
+        {/* ── User pill ── */}
+        <div style={{ padding: "14px 16px 8px", flexShrink: 0 }}>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "rgba(42,109,181,0.1)",
+              border: "1px solid rgba(42,109,181,0.2)",
+            }}
+          >
+            {/* Avatar */}
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "linear-gradient(135deg, #1a4a7a 0%, #4ab3d8 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 700, color: "#fff",
+              flexShrink: 0,
+              boxShadow: "0 0 0 2px rgba(74,179,216,0.25)",
+              fontFamily: "'Syne', sans-serif",
+            }}>
+              {initials}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: 12, fontWeight: 600,
+                color: "#dbeafe",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                Administrador
+              </div>
+              <div style={{
+                fontSize: 11,
+                color: "rgba(74,179,216,0.7)",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {userEmail ?? "Acceso Total"}
+              </div>
+            </div>
+            {/* online dot */}
+            <div style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: "#4ab3d8",
+              marginLeft: "auto", flexShrink: 0,
+              animation: "pulse-dot 2s ease-in-out infinite",
+            }} />
+          </div>
+        </div>
+
+        {/* ── Separador con label ── */}
+        <div style={{
+          padding: "8px 20px 6px",
+          flexShrink: 0,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
+            <span style={{
+              fontSize: 9, fontWeight: 600,
+              color: "rgba(74,179,216,0.45)",
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+            }}>
+              Módulos
+            </span>
+            <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
+          </div>
+        </div>
+
+        {/* ── Navigation ── */}
+        <nav
+          className="ts-scroll"
+          style={{ flex: 1, padding: "4px 12px", overflowY: "auto" }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {navItems.map((item, i) => {
+              const NavIcon = item.icon;
+              const isActive = activeView === item.id;
+              const isHovered = hovered === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  className={`ts-nav-item${isActive ? " active" : ""}`}
+                  onClick={() => setActiveView(item.id)}
+                  onMouseEnter={() => setHovered(item.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    animationDelay: `${i * 0.05}s`,
+                    animation: "sidebarIn .4s cubic-bezier(.16,1,.3,1) both",
+                  }}
+                >
+                  {/* shimmer en item activo */}
+                  <span className="shimmer-layer" />
+
+                  {/* barra lateral activa */}
+                  {isActive && <span className="ts-active-bar" />}
+
+                  {/* ícono con fondo */}
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: isActive
+                      ? "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 100%)"
+                      : isHovered
+                        ? "rgba(42,109,181,0.18)"
+                        : "rgba(42,109,181,0.08)",
+                    border: isActive
+                      ? "1px solid rgba(74,179,216,0.35)"
+                      : "1px solid rgba(42,109,181,0.12)",
+                    transition: "background .2s, border-color .2s",
+                    boxShadow: isActive ? "0 2px 10px rgba(42,109,181,0.35)" : "none",
+                  }}>
+                    <NavIcon
+                      size={16}
+                      style={{
+                        color: isActive ? "#4ab3d8" : isHovered ? "#7cc8e8" : "rgba(120,160,210,0.7)",
+                        transition: "color .2s",
+                      }}
+                    />
+                  </div>
+
+                  {/* texto */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 13, fontWeight: isActive ? 600 : 500,
+                      color: isActive ? "#dbeafe" : "rgba(180,210,240,0.8)",
+                      transition: "color .2s",
+                      lineHeight: 1.3,
+                    }}>
+                      {item.label}
+                    </div>
+                    <div style={{
+                      fontSize: 11,
+                      color: isActive ? "rgba(74,179,216,0.65)" : "rgba(100,140,190,0.5)",
+                      transition: "color .2s",
+                      marginTop: 1,
+                    }}>
+                      {item.description}
+                    </div>
+                  </div>
+
+                  {/* chevron */}
+                  <ChevronRight
+                    size={13}
+                    style={{
+                      color: isActive ? "rgba(74,179,216,0.7)" : "transparent",
+                      transition: "color .2s, transform .2s",
+                      transform: isActive ? "translateX(0)" : "translateX(-4px)",
+                      flexShrink: 0,
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* ── Footer del sidebar ── */}
+        <div style={{
+          padding: "12px 12px 16px",
+          borderTop: "1px solid rgba(42,109,181,0.12)",
+          flexShrink: 0,
+        }}>
+          <button className="ts-logout" onClick={handleLogout}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "rgba(248,113,113,0.08)",
+              border: "1px solid rgba(248,113,113,0.15)",
+            }}>
+              <LogOut size={14} style={{ color: "#f87171" }} />
+            </div>
+            <span style={{ fontWeight: 500 }}>Cerrar Sesión</span>
+          </button>
+
+          <div style={{
+            marginTop: 10, textAlign: "center",
+            fontSize: 10,
+            color: "rgba(42,109,181,0.35)",
+            letterSpacing: "0.04em",
+          }}>
+            TECSUR © {new Date().getFullYear()} · Maquinaria Pesada
+          </div>
+        </div>
+      </aside>
+
+      {/* ════════════════════════════════════════════════════════
+          MAIN CONTENT
+      ════════════════════════════════════════════════════════ */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {/* ── Header ── */}
+        <header style={{
+          display: "flex", alignItems: "center", gap: 16,
+          padding: "0 28px",
+          minHeight: 62,
+          background: "rgba(8,16,34,0.95)",
+          borderBottom: "1px solid rgba(42,109,181,0.15)",
+          backdropFilter: "blur(16px)",
+          flexShrink: 0,
+        }}>
+          {/* Toggle sidebar */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle sidebar"
+            style={{
+              width: 36, height: 36,
+              borderRadius: 9,
+              background: "rgba(42,109,181,0.1)",
+              border: "1px solid rgba(42,109,181,0.2)",
+              color: "rgba(74,179,216,0.8)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+              transition: "background .2s, border-color .2s",
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(42,109,181,0.2)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(74,179,216,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(42,109,181,0.1)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(42,109,181,0.2)";
+            }}
+          >
+            {sidebarOpen ? <X size={17} /> : <Menu size={17} />}
+          </button>
+
+          {/* Breadcrumb / título */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 100%)",
+              border: "1px solid rgba(74,179,216,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 10px rgba(42,109,181,0.3)",
+            }}>
+              <Icon size={15} style={{ color: "#4ab3d8" }} />
+            </div>
+            <div>
+              <div style={{
+                fontSize: 13, fontWeight: 700,
+                color: "#dbeafe",
+                fontFamily: "'Syne', sans-serif",
+                lineHeight: 1.2,
+              }}>
+                {currentItem.label}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)" }}>
+                {currentItem.description}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Estado del sistema */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "5px 12px",
+            borderRadius: 20,
+            background: "rgba(74,179,216,0.08)",
+            border: "1px solid rgba(74,179,216,0.18)",
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: "#4ab3d8",
+              animation: "pulse-dot 2s ease-in-out infinite",
+            }} />
+            <span style={{ fontSize: 11, color: "rgba(74,179,216,0.8)", fontWeight: 500 }}>
+              Sistema en línea
+            </span>
+          </div>
+        </header>
+
+        {/* ── Page content ── */}
+        <main
+          className="ts-scroll"
+          style={{
+            flex: 1, overflowY: "auto",
+            background: "#060d18",
+            padding: "32px 32px 48px",
+          }}
+        >
+          <div className="ts-view-fade" key={activeView}>
+            {activeView === "consulta" && <ConsultaAdminView />}
+            {activeView === "docentes" && <DocentesView />}
+            {activeView === "pensiones" && <PensionesView />}
+            {activeView === "alumnos" && <AlumnosView />}
+            {activeView === "modulos" && <ModulosView />}
+            {activeView === "ingreso" && <IngresoView />}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
