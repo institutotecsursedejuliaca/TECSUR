@@ -33,7 +33,7 @@ import IngresoView from "@/components/IngresoView";
 // -------------------------------------------------------------
 
 type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso";
-
+//type View = "alumnos" | "ingreso";
 const navItems: {
   id: View;
   label: string;
@@ -43,15 +43,15 @@ const navItems: {
 }[] = [
     { id: "ingreso", label: "Control de Ingreso", icon: ScanLine, description: "Asistencia por DNI" },
     { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
-    { id: "consulta", label: "Consulta General", icon: Search, description: "Búsqueda por DNI" },
-    { id: "docentes", label: "Módulo Docentes", icon: GraduationCap, description: "Notas y asistencia" },
-    { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
-    { id: "modulos", label: "Módulos", icon: Cpu, description: "Cursos disponibles" },
+    // { id: "consulta", label: "Consulta General", icon: Search, description: "Búsqueda por DNI" },
+    // { id: "docentes", label: "Módulo Docentes", icon: GraduationCap, description: "Notas y asistencia" },
+    // { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
+    // { id: "modulos", label: "Módulos", icon: Cpu, description: "Cursos disponibles" },
   ];
 
 export default function HomePage() {
   const router = useRouter();
-  const [activeView, setActiveView] = useState<View>("consulta");
+  const [activeView, setActiveView] = useState<View>("ingreso");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hovered, setHovered] = useState<View | null>(null);
@@ -69,7 +69,7 @@ export default function HomePage() {
     setTimeout(() => { window.location.href = "/login"; }, 800);
   }
 
-  const currentItem = navItems.find((n) => n.id === activeView)!;
+  const currentItem = navItems.find((n) => n.id === activeView) || navItems[0];
   const Icon = currentItem.icon;
 
   // Initials from email
