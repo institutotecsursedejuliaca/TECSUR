@@ -41,11 +41,21 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Error al obtener matrículas" }, { status: 500 });
   }
 
-  // Get notas for each matricula
+  // Get notas_cursos for each matricula
   const matriculaIds = (matriculas ?? []).map((m) => m.id);
-  const { data: notas, error: notasError } = await supabase
-    .from("notas")
-    .select("*")
+  const { data: notas_cursos, error: notasError } = await supabase
+    .from("notas_cursos")
+    .select(`
+      id,
+      matricula_id,
+      curso_id,
+      nota,
+      cursos (
+        id,
+        nombre,
+        orden
+      )
+    `)
     .in("matricula_id", matriculaIds.length > 0 ? matriculaIds : ["none"]);
 
   if (notasError) {
@@ -65,14 +75,40 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Error al obtener pensiones" }, { status: 500 });
   }
 
+  // Get asistencias
+  const { data: asistencias, error: asistenciasError } = await supabase
+    .from("asistencias")
+    .select("*")
+    .in("matricula_id", matriculaIds.length > 0 ? matriculaIds : ["none"]);
+
+  if (asistenciasError) {
+    return Response.json({ error: "Error al obtener asistencias" }, { status: 500 });
+  }
+
   // Compose response
   const modulosConNotas = (matriculas ?? []).map((mat) => {
-    const notasDelModulo = (notas ?? []).filter((n) => n.matricula_id === mat.id);
+    const notasDelModulo = (notas_cursos ?? []).filter((n) => n.matricula_id === mat.id);
+    const asistenciasDelModulo = (asistencias ?? []).filter((a) => a.matricula_id === mat.id);
+    
+    // Sort courses by orden
+    notasDelModulo.sort((a, b) => {
+      const cursoA = Array.isArray(a.cursos) ? a.cursos[0] : a.cursos;
+      const cursoB = Array.isArray(b.cursos) ? b.cursos[0] : b.cursos;
+      const orderA = cursoA?.orden ?? 99;
+      const orderB = cursoB?.orden ?? 99;
+      return orderA - orderB;
+    });
+
+    const totalAsistencias = asistenciasDelModulo.length;
+    const totalPresentes = asistenciasDelModulo.filter(a => a.presente).length;
+    const asistencia_total = totalAsistencias > 0 ? Math.round((totalPresentes / totalAsistencias) * 100) : null;
+
     return {
       matricula_id: mat.id,
       fecha_registro: mat.fecha_registro,
       modulo: mat.modulos,
-      notas: notasDelModulo[0] ?? null,
+      notas_cursos: notasDelModulo,
+      asistencia_total
     };
   });
 

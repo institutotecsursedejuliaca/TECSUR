@@ -15,6 +15,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import AlertDialog from "./AlertDialog";
+import ReporteModuloBtn from "./ReporteModuloBtn";
+import ReporteMatriculaBtn from "./ReporteMatriculaBtn";
+import ReporteAsistenciaBtn from "./ReporteAsistenciaBtn";
 
 interface AlumnoData {
   alumno: {
@@ -35,16 +39,12 @@ interface AlumnoData {
       modalidad: string;
       duracion: number;
     };
-    notas: {
-      inspeccion: number | null;
-      mantenimiento: number | null;
-      sistema_hidraulico: number | null;
-      seguridad: number | null;
-      ingles: number | null;
-      operacion: number | null;
-      promedio: number | null;
-      asistencia_total: number | null;
-    } | null;
+    notas_cursos: Array<{
+      curso_id: string;
+      nota: number | null;
+      cursos: { nombre: string };
+    }>;
+    asistencia_total: number | null;
   }>;
   pensiones: Array<{
     id: string;
@@ -66,7 +66,7 @@ function scoreClass(score: number | null): string {
 
 function ScoreCell({ value }: { value: number | null }) {
   if (value === null) return <span style={{ color: "var(--text-muted)" }}>—</span>;
-  return <span className={scoreClass(value)}>{value}</span>;
+  return <span className={`font-bold ${scoreClass(value)}`}>{value}</span>;
 }
 
 export default function ConsultaAdminView() {
@@ -99,262 +99,192 @@ export default function ConsultaAdminView() {
     }
   }
 
-  const totalDeuda = data?.pensiones.reduce((sum, p) => sum + (p.deuda_pendiente ?? 0), 0) ?? 0;
-  const totalPagado = data?.pensiones.reduce((sum, p) => sum + (p.monto_pagado ?? 0), 0) ?? 0;
+  const totalPagado = data?.pensiones.reduce((s, p) => s + p.monto_pagado, 0) || 0;
+  
+  // Agrupar deuda por módulo (usar la última fecha de pago)
+  let totalDeuda = 0;
+  if (data?.pensiones) {
+    const deudaMap = new Map<string, number>(); // modulo_id -> ultima deuda
+    const pagosOrdenados = [...data.pensiones].sort((a,b) => new Date(b.fecha_pago).getTime() - new Date(a.fecha_pago).getTime());
+    pagosOrdenados.forEach(p => {
+      // Como pensiones en consulta no expone modulo_id fácilmente, solo sumamos todas las deudas activas o asumimos la última de cada nombre de modulo.
+      if (p.modulos?.nombre && !deudaMap.has(p.modulos.nombre)) {
+        deudaMap.set(p.modulos.nombre, p.deuda_pendiente);
+      }
+    });
+    totalDeuda = Array.from(deudaMap.values()).reduce((sum, d) => sum + d, 0);
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Search bar */}
-      <div className="glass-card" style={{ padding: "28px 28px 24px" }}>
-        <div className="mb-4">
-          <h2 className="section-title">Consulta por DNI</h2>
-          <p className="section-subtitle">Ingrese el DNI para obtener el reporte académico consolidado</p>
-        </div>
-        <form onSubmit={handleSearch} className="flex gap-3">
-          <div className="flex-1 relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-              style={{ color: "var(--text-muted)" }}
-            />
+    <div className="w-full pb-12" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      {/* ── BÚSQUEDA ── */}
+      <div className="glass-card" style={{ padding: "32px", border: "1px solid rgba(42,109,181,0.2)" }}>
+        <h2 className="text-2xl font-bold text-white mb-2">Consulta de Alumnos</h2>
+        <p className="text-sm text-blue-300 opacity-80 mb-6">Busque un alumno por DNI para ver todos sus registros académicos y financieros.</p>
+        <form onSubmit={handleSearch} style={{ display: "flex", gap: 16, maxWidth: 600 }}>
+          <div className="relative flex-1" style={{ position: "relative" }}>
+            <Search size={16} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,0.6)" }} />
             <input
-              id="search-dni-input"
-              className="input-field pl-9"
-              placeholder="Ej: 12345678"
+              id="consulta-dni-input"
+              className="w-full text-white rounded-xl outline-none"
+              style={{ height: 48, paddingLeft: 44, paddingRight: 16, background: "rgba(10,22,44,0.7)", border: "1px solid rgba(42,109,181,0.3)" }}
+              placeholder="Ingrese el DNI del alumno..."
               value={dni}
               onChange={(e) => setDni(e.target.value)}
-              maxLength={12}
-              type="text"
+              autoComplete="off"
             />
           </div>
           <button
-            id="search-dni-btn"
+            id="consulta-submit-btn"
             type="submit"
-            className="btn-primary"
             disabled={loading}
-            style={{ minWidth: 120 }}
+            className="rounded-xl font-bold text-white transition-all disabled:opacity-50"
+            style={{ height: 48, padding: "0 24px", background: "#2a6db5" }}
           >
-            {loading ? (
-              <span style={{ opacity: 0.7 }}>Buscando…</span>
-            ) : (
-              <>
-                <Search size={16} />
-                Buscar
-              </>
-            )}
+            {loading ? "Buscando..." : "Consultar"}
           </button>
         </form>
-        {error && (
-          <div className="alert alert-error mt-4">
-            <XCircle size={16} />
-            {error}
-          </div>
-        )}
+
+        <AlertDialog open={!!error} onClose={() => setError(null)} message={error || ""} type="error" />
       </div>
 
       {data && (
-        <>
-          {/* Alumno header card */}
-          <div
-            className="rounded-xl p-6 relative overflow-hidden"
-            style={{
-              background: "linear-gradient(135deg, #1e3a5f 0%, #1a2d48 100%)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            <div
-              className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10"
-              style={{
-                background: "radial-gradient(circle, #3b82f6, transparent)",
-                transform: "translate(30%, -30%)",
-              }}
-            />
-            <div className="flex items-start gap-4">
-              <div
-                className="flex items-center justify-center rounded-xl text-xl font-bold flex-shrink-0"
-                style={{
-                  width: 64,
-                  height: 64,
-                  background: "linear-gradient(135deg, #3b82f6, #06b6d4)",
-                  color: "white",
-                  boxShadow: "0 4px 20px rgba(59,130,246,0.4)",
-                }}
-              >
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          
+          {/* ── ALUMNO INFO HEADER ── */}
+          <div className="glass-card overflow-hidden" style={{ border: "1px solid rgba(42,109,181,0.2)" }}>
+            <div className="flex items-start gap-6 relative" style={{ padding: 32 }}>
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-black text-white shrink-0"
+                   style={{ background: "#1a4a7a", border: "1px solid rgba(42,109,181,0.4)" }}>
                 {data.alumno.nombres[0]}{data.alumno.apellidos[0]}
               </div>
-              <div className="flex-1">
-                <h2
-                  className="text-2xl font-bold"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {data.alumno.nombres} {data.alumno.apellidos}
+              
+              <div className="flex-1 relative z-10">
+                <h2 className="text-3xl font-black text-white tracking-tight">
+                  {data.alumno.apellidos}, <span className="font-medium text-blue-200">{data.alumno.nombres}</span>
                 </h2>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  <span className="badge badge-blue">
-                    <User size={10} />
-                    DNI: {data.alumno.dni}
+                <div className="flex flex-wrap gap-4 mt-3">
+                  <span className="flex items-center gap-1.5 rounded-full text-xs font-bold bg-blue-900 bg-opacity-30 text-blue-300 border border-blue-800" style={{ padding: "4px 12px" }}>
+                    <User size={12} /> DNI: {data.alumno.dni}
                   </span>
-                  <span style={carreraBadgeStyle(data.alumno.carrera)}>
-                    <BookOpen size={10} style={{display:"inline",verticalAlign:"middle",marginRight:4}}/>
-                    {data.alumno.carrera}
+                  <span className="flex items-center gap-1.5 rounded-full text-xs font-bold border border-blue-800" style={{ ...carreraBadgeStyle(data.alumno.carrera), padding: "4px 12px" }}>
+                    <BookOpen size={12} /> {data.alumno.carrera}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-4 mt-5">
-              <div
-                className="rounded-lg p-3 text-center"
-                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}
-              >
-                <div className="text-2xl font-bold" style={{ color: "#60a5fa" }}>
-                  {data.modulos.length}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                  Módulos inscritos
-                </div>
+            {/* STATS STRIP */}
+            <div className="grid grid-cols-3 divide-x divide-blue-900 divide-opacity-30 border-t border-blue-900 border-opacity-30 bg-black bg-opacity-20">
+              <div className="text-center" style={{ padding: 20 }}>
+                <div className="text-3xl font-black text-blue-400">{data.modulos.length}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300 opacity-60 mt-1">Módulos</div>
               </div>
-              <div
-                className="rounded-lg p-3 text-center"
-                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}
-              >
-                <div className="text-2xl font-bold" style={{ color: "#34d399" }}>
-                  S/ {totalPagado.toFixed(2)}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                  Total pagado
-                </div>
+              <div className="text-center" style={{ padding: 20 }}>
+                <div className="text-3xl font-black text-emerald-400">S/ {totalPagado.toFixed(2)}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300 opacity-60 mt-1">Total Pagado</div>
               </div>
-              <div
-                className="rounded-lg p-3 text-center"
-                style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}
-              >
-                <div
-                  className="text-2xl font-bold"
-                  style={{ color: totalDeuda > 0 ? "#f87171" : "#34d399" }}
-                >
-                  S/ {totalDeuda.toFixed(2)}
-                </div>
-                <div className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-                  Deuda pendiente
-                </div>
+              <div className="text-center" style={{ padding: 20 }}>
+                <div className={`text-3xl font-black ${totalDeuda > 0 ? 'text-red-400' : 'text-emerald-400'}`}>S/ {totalDeuda.toFixed(2)}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300 opacity-60 mt-1">Deuda Pendiente</div>
               </div>
             </div>
           </div>
 
-          {/* Modules accordion */}
+          {/* ── MÓDULOS ACCORDION ── */}
           {data.modulos.length > 0 && (
-            <div>
-              <h3 className="font-bold text-base mb-3" style={{ color: "var(--text-primary)" }}>
-                Módulos y Calificaciones
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <h3 className="text-xl font-bold text-white flex items-center gap-2 px-2" style={{ marginBottom: 8 }}>
+                <Award className="text-blue-400" /> Rendimiento y Asistencia
               </h3>
-              <div className="space-y-3">
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {data.modulos.map((item) => {
                   const isOpen = expandedModulo === item.matricula_id;
-                  const n = item.notas;
+                  const notas = item.notas_cursos;
+                  
+                  const promediosParciales = notas.filter(n => n.nota !== null).map(n => n.nota!);
+                  const promedioFinal = promediosParciales.length > 0 
+                    ? promediosParciales.reduce((a,b)=>a+b, 0) / promediosParciales.length 
+                    : null;
+
                   return (
-                    <div
-                      key={item.matricula_id}
-                      className="rounded-xl overflow-hidden"
-                      style={{ border: "1px solid var(--border-subtle)", background: "var(--surface)" }}
-                    >
-                      {/* Accordion header */}
+                    <div key={item.matricula_id} className="glass-card overflow-hidden transition-all duration-300" 
+                         style={{ border: `1px solid ${isOpen ? 'rgba(74,179,216,0.5)' : 'rgba(42,109,181,0.2)'}`,
+                                  boxShadow: isOpen ? '0 10px 30px rgba(0,0,0,0.3)' : 'none' }}>
+                      
+                      {/* HEADER */}
                       <button
-                        id={`modulo-accordion-${item.matricula_id}`}
-                        className="w-full flex items-center gap-4 p-4 text-left transition-colors"
-                        style={{ background: isOpen ? "var(--surface-2)" : "transparent" }}
+                        className="w-full flex items-center gap-5 text-left transition-colors hover:bg-blue-900 hover:bg-opacity-10"
+                        style={{ padding: 20 }}
                         onClick={() => setExpandedModulo(isOpen ? null : item.matricula_id)}
                       >
-                        <div
-                          className="flex items-center justify-center rounded-lg flex-shrink-0"
-                          style={{
-                            width: 40,
-                            height: 40,
-                            background: "linear-gradient(135deg, rgba(59,130,246,0.2), rgba(6,182,212,0.2))",
-                            border: "1px solid rgba(59,130,246,0.2)",
-                          }}
-                        >
-                          <Award size={18} style={{ color: "#60a5fa" }} />
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-900 bg-opacity-20 border border-blue-800 shrink-0">
+                          <Award size={20} className="text-blue-400" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
-                            {item.modulo?.nombre ?? "Módulo sin nombre"}
-                          </div>
-                          <div className="flex gap-3 mt-1">
-                            <span className="badge badge-blue" style={{ fontSize: 10 }}>
-                              {item.modulo?.modalidad}
-                            </span>
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                              <Calendar size={10} className="inline mr-1" />
-                              {item.modulo?.fecha_inicio} → {item.modulo?.fecha_fin}
-                            </span>
+                        
+                        <div className="flex-1">
+                          <div className="text-lg font-bold text-white">{item.modulo?.nombre ?? "Módulo sin nombre"}</div>
+                          <div className="flex gap-4 mt-1.5 text-xs text-blue-300 opacity-80">
+                            <span className="bg-blue-900 bg-opacity-40 rounded text-[10px] uppercase font-bold tracking-wider" style={{ padding: "2px 8px" }}>{item.modulo?.modalidad}</span>
+                            <span className="flex items-center gap-1"><Calendar size={12} /> {item.modulo?.fecha_inicio} → {item.modulo?.fecha_fin}</span>
                           </div>
                         </div>
-                        {n?.promedio !== null && n?.promedio !== undefined ? (
-                          <div className={`text-2xl font-bold ${scoreClass(n.promedio)}`}>
-                            {n.promedio.toFixed(1)}
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Sin notas</span>
-                        )}
-                        {isOpen ? (
-                          <ChevronUp size={16} style={{ color: "var(--text-muted)" }} />
-                        ) : (
-                          <ChevronDown size={16} style={{ color: "var(--text-muted)" }} />
-                        )}
+
+                        <div className="text-right mr-4">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-blue-300 opacity-60 mb-0.5">Promedio</div>
+                          {promedioFinal !== null ? (
+                            <div className={`text-2xl font-black ${scoreClass(Math.round(promedioFinal))}`}>{promedioFinal.toFixed(1)}</div>
+                          ) : (
+                            <div className="text-sm font-medium text-blue-400 opacity-50">S/N</div>
+                          )}
+                        </div>
+
+                        {isOpen ? <ChevronUp size={20} className="text-blue-400" /> : <ChevronDown size={20} className="text-blue-400 opacity-50" />}
                       </button>
 
-                      {/* Accordion body */}
+                      {/* BODY */}
                       {isOpen && (
-                        <div className="p-4 pt-0" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                          {n ? (
-                            <div className="overflow-x-auto mt-3">
-                              <table className="data-table">
-                                <thead>
-                                  <tr>
-                                    <th>Inspección</th>
-                                    <th>Mantenimiento</th>
-                                    <th>Sist. Hidráulico</th>
-                                    <th>Seguridad</th>
-                                    <th>Inglés</th>
-                                    <th>Operación</th>
-                                    <th>Promedio</th>
-                                    <th>Asistencia</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <tr>
-                                    <td><ScoreCell value={n.inspeccion} /></td>
-                                    <td><ScoreCell value={n.mantenimiento} /></td>
-                                    <td><ScoreCell value={n.sistema_hidraulico} /></td>
-                                    <td><ScoreCell value={n.seguridad} /></td>
-                                    <td><ScoreCell value={n.ingles} /></td>
-                                    <td><ScoreCell value={n.operacion} /></td>
-                                    <td>
-                                      <span className={`text-base font-bold ${scoreClass(n.promedio)}`}>
-                                        {n.promedio?.toFixed(2) ?? "—"}
-                                      </span>
-                                    </td>
-                                    <td>
-                                      {n.asistencia_total !== null ? (
-                                        <span style={{ color: "#34d399", fontWeight: 600 }}>
-                                          {n.asistencia_total}%
-                                        </span>
-                                      ) : (
-                                        <span style={{ color: "var(--text-muted)" }}>—</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
+                        <div className="border-t border-blue-900 border-opacity-30 bg-black bg-opacity-10" style={{ padding: "8px 24px 24px 24px" }}>
+                          
+                          {/* GRADES TABLE */}
+                          <div className="mt-4">
+                            <h4 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-3">Notas por Curso</h4>
+                            {notas && notas.length > 0 ? (
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                {notas.map((n, idx) => (
+                                  <div key={idx} className="bg-blue-950 bg-opacity-40 border border-blue-900 border-opacity-50 rounded-lg flex justify-between items-center" style={{ padding: 12 }}>
+                                    <span className="text-xs font-medium text-blue-200 line-clamp-2 pr-2">{n.cursos?.nombre}</span>
+                                    <span className="text-lg"><ScoreCell value={n.nota} /></span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center text-sm text-blue-400 opacity-60 bg-blue-900 bg-opacity-10 rounded-lg border border-blue-900 border-opacity-30" style={{ padding: 24 }}>
+                                El docente aún no ha registrado las notas de los cursos.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-6">
+                            <h4 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-3">Asistencia General</h4>
+                            <div className="flex items-center gap-4">
+                              <div className="text-2xl font-black" style={{ color: item.asistencia_total !== null && item.asistencia_total >= 70 ? "#34d399" : item.asistencia_total !== null ? "#f87171" : "var(--text-muted)"}}>
+                                {item.asistencia_total !== null ? `${item.asistencia_total}%` : "—"}
+                              </div>
+                              <div className="text-xs text-blue-300 opacity-70 max-w-xs">
+                                Porcentaje calculado sobre las sesiones registradas por el docente.
+                              </div>
                             </div>
-                          ) : (
-                            <div className="alert alert-warning mt-3">
-                              <AlertTriangle size={14} />
-                              Aún no se han registrado notas para este módulo.
-                            </div>
-                          )}
+                          </div>
+
+                          {/* ACTION BUTTONS */}
+                          <div className="mt-8 pt-6 flex flex-wrap gap-3 border-t border-blue-900 border-opacity-30">
+                            <ReporteMatriculaBtn matriculaId={item.matricula_id} />
+                            <ReporteAsistenciaBtn matriculaId={item.matricula_id} />
+                            <ReporteModuloBtn moduloId={item.modulo?.id} text="Reporte Consolidado (Toda el aula)" />
+                          </div>
+
                         </div>
                       )}
                     </div>
@@ -364,82 +294,49 @@ export default function ConsultaAdminView() {
             </div>
           )}
 
-          {/* Pensiones table */}
+          {/* ── PAGOS TABLE ── */}
           {data.pensiones.length > 0 && (
-            <div>
-              <h3 className="font-bold text-base mb-3" style={{ color: "var(--text-primary)" }}>
-                Estado de Cuenta — Pensiones
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 16 }}>
+              <h3 className="text-xl font-bold text-white flex items-center gap-2 px-2">
+                <CreditCard className="text-emerald-400" /> Historial de Pagos
               </h3>
-              <div className="glass-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>N° Recibo</th>
-                        <th>Módulo</th>
-                        <th>Monto Pagado</th>
-                        <th>Deuda Pendiente</th>
-                        <th>Fecha Pago</th>
-                        <th>Estado</th>
+              <div className="glass-card overflow-hidden" style={{ border: "1px solid rgba(42,109,181,0.2)" }}>
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-blue-900 bg-opacity-20 border-b border-blue-900 border-opacity-30 text-blue-300">
+                      <th className="font-semibold uppercase tracking-wider text-xs" style={{ padding: 16 }}>Fecha</th>
+                      <th className="font-semibold uppercase tracking-wider text-xs" style={{ padding: 16 }}>Recibo</th>
+                      <th className="font-semibold uppercase tracking-wider text-xs" style={{ padding: 16 }}>Módulo</th>
+                      <th className="font-semibold uppercase tracking-wider text-xs" style={{ padding: 16 }}>Monto Pagado</th>
+                      <th className="font-semibold uppercase tracking-wider text-xs" style={{ padding: 16 }}>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-blue-900 divide-opacity-20">
+                    {data.pensiones.map(p => (
+                      <tr key={p.id} className="hover:bg-blue-900 hover:bg-opacity-10 transition-colors">
+                        <td className="text-blue-200" style={{ padding: 16 }}>{p.fecha_pago}</td>
+                        <td className="font-mono font-medium text-blue-300" style={{ padding: 16 }}>{p.nro_recibo}</td>
+                        <td className="text-blue-200" style={{ padding: 16 }}>{p.modulos?.nombre || "—"}</td>
+                        <td className="font-bold text-emerald-400" style={{ padding: 16 }}>S/ {p.monto_pagado.toFixed(2)}</td>
+                        <td style={{ padding: 16 }}>
+                          {p.deuda_pendiente > 0 ? (
+                            <span className="inline-flex items-center gap-1.5 rounded text-xs font-bold bg-red-900 bg-opacity-30 text-red-400 border border-red-800" style={{ padding: "4px 10px" }}>
+                              <XCircle size={12} /> Debe S/ {p.deuda_pendiente.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded text-xs font-bold bg-emerald-900 bg-opacity-30 text-emerald-400 border border-emerald-800" style={{ padding: "4px 10px" }}>
+                              <CheckCircle size={12} /> Al día
+                            </span>
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.pensiones.map((p) => (
-                        <tr key={p.id}>
-                          <td className="font-mono text-xs">{p.nro_recibo}</td>
-                          <td>{p.modulos?.nombre ?? "—"}</td>
-                          <td>
-                            <span style={{ color: "#34d399", fontWeight: 600 }}>
-                              S/ {p.monto_pagado.toFixed(2)}
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              style={{
-                                color: p.deuda_pendiente > 0 ? "#f87171" : "#34d399",
-                                fontWeight: 600,
-                              }}
-                            >
-                              S/ {p.deuda_pendiente.toFixed(2)}
-                            </span>
-                          </td>
-                          <td style={{ color: "var(--text-secondary)" }}>{p.fecha_pago}</td>
-                          <td>
-                            {p.deuda_pendiente > 0 ? (
-                              <span className="badge badge-red">
-                                <XCircle size={10} /> Con deuda
-                              </span>
-                            ) : (
-                              <span className="badge badge-green">
-                                <CheckCircle size={10} /> Al día
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
-
-          {data.modulos.length === 0 && data.pensiones.length === 0 && (
-            <div className="alert alert-info">
-              <BookOpen size={14} />
-              El alumno no tiene matrículas ni pagos registrados aún.
-            </div>
-          )}
-        </>
-      )}
-
-      {!data && !loading && !error && (
-        <div
-          className="flex flex-col items-center justify-center py-16 text-center"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <Search size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
-          <p className="text-sm">Ingrese un DNI para visualizar el reporte académico</p>
+          
         </div>
       )}
     </div>

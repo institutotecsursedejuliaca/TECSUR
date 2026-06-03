@@ -19,7 +19,13 @@ import {
   Phone,
   MapPin,
   Users,
+  Layers,
 } from "lucide-react";
+import Modal from "./Modal";
+import ConfirmDialog from "./ConfirmDialog";
+import AlertDialog from "./AlertDialog";
+import ReporteAsistenciaBtn from "./ReporteAsistenciaBtn";
+import ReporteMatriculaBtn from "./ReporteMatriculaBtn";
 
 // ─────────────────────────────────────────────────────────────
 // TIPOS
@@ -51,6 +57,9 @@ interface Alumno {
 interface Modulo {
   id: string;
   nombre: string;
+  horario?: string | null;
+  carrera_id?: string | null;
+  carreras?: { id: string; nombre: string } | null;
 }
 
 interface PaginatedResponse {
@@ -73,192 +82,6 @@ const CARRERAS = [
 
 const PAGE_SIZE = 10;
 
-
-// ─────────────────────────────────────────────────────────────
-// SUBCOMPONENTE: Modal (Centrado, animado desde arriba con <dialog>)
-// ─────────────────────────────────────────────────────────────
-function Modal({
-  open,
-  onClose,
-  title,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      if (!dialog.open) dialog.showModal();
-    } else {
-      if (dialog.open) dialog.close();
-    }
-  }, [open]);
-
-  // Cierra al hacer clic en el backdrop
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const rect = dialogRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const { clientX: x, clientY: y } = e;
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-      onClose();
-    }
-  }
-
-  return (
-    <dialog
-      ref={dialogRef}
-      onClick={handleBackdropClick}
-      style={{
-        padding: 0,
-        border: "none",
-        borderRadius: 16,
-        background: "transparent",
-        maxWidth: "min(540px, 95vw)",
-        width: "100%",
-        outline: "none",
-        position: "fixed",
-        top: "10%", /* Desplazado ligeramente hacia arriba pero centrado en pantalla */
-        margin: "0 auto",
-      }}
-    >
-      <style>{`
-        dialog::backdrop {
-          background: rgba(4, 10, 24, 0.75);
-          backdrop-filter: blur(6px);
-        }
-        dialog[open] {
-          animation: modalIn .32s cubic-bezier(.16, 1, .3, 1) both;
-        }
-        @keyframes modalIn {
-          from { opacity: 0; transform: translateY(-40px) scale(0.96); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-      `}</style>
-
-      <div
-        style={{
-          background: "rgba(8,16,34,0.98)",
-          border: "1px solid rgba(42,109,181,0.28)",
-          borderRadius: 16,
-          overflow: "hidden",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(74,179,216,0.06) inset",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* barra superior */}
-        <div style={{
-          height: 3,
-          background: "linear-gradient(90deg, #1a4a7a, #2a6db5, #4ab3d8, #2a6db5, #1a4a7a)",
-          backgroundSize: "200% 100%",
-          animation: "barShift 3s linear infinite",
-        }} />
-
-        {/* header del modal */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "18px 24px 14px",
-          borderBottom: "1px solid rgba(42,109,181,0.14)",
-        }}>
-          <h3 style={{
-            fontSize: 15, fontWeight: 700,
-            color: "#dbeafe",
-            fontFamily: "'Syne', sans-serif",
-            letterSpacing: "0.02em",
-          }}>
-            {title}
-          </h3>
-          <button
-            onClick={onClose}
-            style={{
-              width: 30, height: 30, borderRadius: 8,
-              background: "rgba(42,109,181,0.1)",
-              border: "1px solid rgba(42,109,181,0.2)",
-              color: "rgba(74,179,216,0.7)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer",
-              transition: "background .2s",
-            }}
-          >
-            <X size={14} />
-          </button>
-        </div>
-
-        {/* contenido */}
-        <div style={{ padding: "22px 24px 24px" }}>
-          {children}
-        </div>
-      </div>
-    </dialog>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// SUBCOMPONENTE: ConfirmDialog (para eliminar)
-// ─────────────────────────────────────────────────────────────
-function ConfirmDialog({
-  open,
-  onClose,
-  onConfirm,
-  alumno,
-  loading,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  alumno: Alumno | null;
-  loading: boolean;
-}) {
-  return (
-    <Modal open={open} onClose={onClose} title="Confirmar Eliminación">
-      <div style={{ textAlign: "center" }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: "50%", margin: "0 auto 16px",
-          background: "rgba(248,113,113,0.1)",
-          border: "1px solid rgba(248,113,113,0.25)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Trash2 size={22} style={{ color: "#f87171" }} />
-        </div>
-        <p style={{ fontSize: 14, color: "#dbeafe", marginBottom: 6, fontWeight: 500 }}>
-          ¿Eliminar a este alumno?
-        </p>
-        {alumno && (
-          <p style={{ fontSize: 13, color: "rgba(120,160,210,0.75)", marginBottom: 20 }}>
-            <strong style={{ color: "#4ab3d8" }}>{alumno.apellidos}, {alumno.nombres}</strong>
-            <br />
-            <span style={{ fontFamily: "monospace", fontSize: 12 }}>DNI: {alumno.dni}</span>
-          </p>
-        )}
-        <p style={{ fontSize: 12, color: "rgba(248,113,113,0.7)", marginBottom: 24 }}>
-          Esta acción no se puede deshacer.
-        </p>
-        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-          <button onClick={onClose} style={secondaryBtn}>
-            Cancelar
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading}
-            style={{
-              ...primaryBtn,
-              background: "linear-gradient(135deg, #991b1b, #dc2626)",
-              boxShadow: "0 4px 16px rgba(220,38,38,0.3)",
-            }}
-          >
-            <Trash2 size={14} />
-            {loading ? "Eliminando…" : "Sí, eliminar"}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // ESTILOS REUTILIZABLES
@@ -298,12 +121,11 @@ const primaryBtn: React.CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: 7,
   padding: "9px 18px",
   borderRadius: 10, border: "none",
-  background: "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 55%, #4ab3d8 100%)",
-  color: "#fff",
+  background: "#c9c7c3ff",
+  color: "#0b0b0bff",
   fontSize: 13, fontWeight: 600,
   fontFamily: "inherit",
   cursor: "pointer",
-  boxShadow: "0 4px 16px rgba(42,109,181,0.35)",
   transition: "transform .15s, box-shadow .2s, opacity .2s",
 };
 
@@ -347,14 +169,20 @@ export default function AlumnosView() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [carreraFilter, setCarreraFilter] = useState("");
 
   // ── Modales ──
-  const [modalAlumno,   setModalAlumno]   = useState(false);
-  const [modalMatricula,setModalMatricula]= useState(false);
-  const [modalEditar,   setModalEditar]   = useState(false);
+  const [modalAlumno, setModalAlumno] = useState(false);
+  const [modalMatricula, setModalMatricula] = useState(false);
+  const [matriculaTarget, setMatriculaTarget] = useState<Alumno | null>(null);
+  const [modalEditar, setModalEditar] = useState(false);
   const [modalEliminar, setModalEliminar] = useState(false);
-  const [modalVer,      setModalVer]      = useState(false);
-  const [verTarget,     setVerTarget]     = useState<Alumno | null>(null);
+  const [modalVer, setModalVer] = useState(false);
+  const [verTarget, setVerTarget] = useState<Alumno | null>(null);
+  const [modalMatriculados, setModalMatriculados] = useState(false);
+  const [matriculadosTarget, setMatriculadosTarget] = useState<Alumno | null>(null);
+  const [matriculasList, setMatriculasList] = useState<any[]>([]);
+  const [loadingMatriculas, setLoadingMatriculas] = useState(false);
 
   // ── Formularios ──
   const emptyAlumno = {
@@ -368,22 +196,19 @@ export default function AlumnosView() {
   const [alumnoForm, setAlumnoForm] = useState(emptyAlumno);
   const [editForm, setEditForm] = useState<Alumno | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Alumno | null>(null);
-  const [matriculaForm, setMatriculaForm] = useState({ alumno_id: "", modulo_id: "" });
-  const [formTab, setFormTab] = useState<"basico"|"nacimiento"|"domicilio"|"contacto"|"apoderado">("basico");
+  const [matriculaForm, setMatriculaForm] = useState({ alumno_id: "", modulo_id: "", carrera_id: "", turno: "mañana" });
+  const [formTab, setFormTab] = useState<"basico" | "nacimiento" | "domicilio" | "contacto" | "apoderado">("basico");
 
   // ── Feedback ──
   const [submitting, setSubmitting] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [alertInfo, setAlertInfo] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // ── Helpers ──
   function showSuccess(msg: string) {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 3500);
+    setAlertInfo({ type: "success", msg });
   }
   function showError(msg: string) {
-    setErrorMsg(msg);
-    setTimeout(() => setErrorMsg(null), 4000);
+    setAlertInfo({ type: "error", msg });
   }
 
   // ── Sincronizar página con URL ──
@@ -395,13 +220,14 @@ export default function AlumnosView() {
   }
 
   // ── Cargar alumnos paginados ──
-  const loadAlumnos = useCallback(async (p: number, search: string) => {
+  const loadAlumnos = useCallback(async (p: number, search: string, carrera: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(p),
         pageSize: String(PAGE_SIZE),
         ...(search ? { search } : {}),
+        ...(carrera ? { carrera } : {}),
       });
       const res = await fetch(`/api/alumnos?${params}`);
       const json: PaginatedResponse = await res.json();
@@ -417,7 +243,21 @@ export default function AlumnosView() {
   async function loadModulos() {
     const res = await fetch("/api/modulos");
     const data = await res.json();
+    // data includes carreras relation from the updated API
     setModulos(Array.isArray(data) ? data : []);
+  }
+
+  async function loadMatriculasAlumno(alumnoId: string) {
+    setLoadingMatriculas(true);
+    try {
+      const res = await fetch(`/api/matriculas?alumno_id=${alumnoId}`);
+      const data = await res.json();
+      setMatriculasList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showError("Error al cargar las matrículas del alumno");
+    } finally {
+      setLoadingMatriculas(false);
+    }
   }
 
   useEffect(() => {
@@ -425,8 +265,8 @@ export default function AlumnosView() {
   }, []);
 
   useEffect(() => {
-    loadAlumnos(page, searchTerm);
-  }, [page, searchTerm, loadAlumnos]);
+    loadAlumnos(page, searchTerm, carreraFilter);
+  }, [page, searchTerm, carreraFilter, loadAlumnos]);
 
   // Debounce búsqueda
   useEffect(() => {
@@ -452,7 +292,7 @@ export default function AlumnosView() {
       showSuccess(`Alumno ${alumnoForm.nombres} registrado exitosamente`);
       setModalAlumno(false);
       setAlumnoForm(emptyAlumno);
-      loadAlumnos(page, searchTerm);
+      loadAlumnos(page, searchTerm, carreraFilter);
     } catch (err) {
       showError(err instanceof Error ? err.message : "Error al registrar alumno");
     } finally {
@@ -475,7 +315,7 @@ export default function AlumnosView() {
       showSuccess(`Alumno ${editForm.nombres} actualizado correctamente`);
       setModalEditar(false);
       setEditForm(null);
-      loadAlumnos(page, searchTerm);
+      loadAlumnos(page, searchTerm, carreraFilter);
     } catch (err) {
       showError(err instanceof Error ? err.message : "Error al actualizar alumno");
     } finally {
@@ -493,7 +333,7 @@ export default function AlumnosView() {
       setModalEliminar(false);
       setDeleteTarget(null);
       if (alumnos.length === 1 && page > 1) navigatePage(page - 1);
-      else loadAlumnos(page, searchTerm);
+      else loadAlumnos(page, searchTerm, carreraFilter);
     } catch (err) {
       showError(err instanceof Error ? err.message : "Error al eliminar alumno");
     } finally {
@@ -514,7 +354,8 @@ export default function AlumnosView() {
       if (!res.ok) throw new Error(data.error);
       showSuccess("Matrícula registrada exitosamente");
       setModalMatricula(false);
-      setMatriculaForm({ alumno_id: "", modulo_id: "" });
+      setMatriculaTarget(null);
+      setMatriculaForm({ alumno_id: "", modulo_id: "", carrera_id: "", turno: "mañana" });
     } catch (err) {
       showError(err instanceof Error ? err.message : "Error al matricular");
     } finally {
@@ -582,6 +423,11 @@ export default function AlumnosView() {
           display: inline-flex; align-items: center; justify-content: center;
           cursor: pointer; transition: all .18s;
         }
+        .ts-row-action.enroll:hover {
+          background: rgba(52,211,153,0.1);
+          border-color: rgba(52,211,153,0.25);
+          color: #34d399 !important;
+        }
         .ts-row-action.edit:hover {
           background: rgba(42,109,181,0.15);
           border-color: rgba(74,179,216,0.3);
@@ -594,94 +440,82 @@ export default function AlumnosView() {
         }
       `}</style>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ width: "95%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* ── CABECERA ──────────────────────────────────────── */}
-        <div style={{ ...cardStyle, padding: "24px 28px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ flex: 1 }}>
-              <h2 style={{
-                fontSize: 20, fontWeight: 800,
-                color: "#dbeafe",
-                fontFamily: "'Syne', sans-serif",
-                letterSpacing: "0.02em",
-                marginBottom: 4,
-              }}>
-                Gestión de Alumnos
-              </h2>
-              <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>
-                Registre alumnos, edite datos y gestione matrículas
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button
-                className="ts-btn-secondary"
-                style={secondaryBtn}
-                onClick={() => setModalMatricula(true)}
-              >
-                <BookOpen size={14} />
-                Matricular
-              </button>
-              <button
-                className="ts-btn-primary"
-                style={primaryBtn}
-                onClick={() => setModalAlumno(true)}
-              >
-                <Plus size={14} />
-                Nuevo Alumno
-              </button>
-            </div>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 10 }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{
+              fontSize: 24, fontWeight: 800,
+              color: "#dbeafe",
+              letterSpacing: "0.02em",
+              marginBottom: 4,
+            }}>
+              Gestión de Alumnos
+            </h2>
+            <p style={{ fontSize: 14, color: "rgba(74,179,216,0.6)" }}>
+              Registre alumnos, edite datos y gestione matrículas
+            </p>
           </div>
 
-          {/* Buscador */}
-          <div style={{ marginTop: 18, position: "relative" }}>
-            <Search
-              size={15}
-              style={{
-                position: "absolute", left: 13, top: "50%",
-                transform: "translateY(-50%)",
-                color: "rgba(74,179,216,0.5)",
-                pointerEvents: "none",
-              }}
-            />
-            <input
-              className="ts-input"
-              style={{ ...inputStyle, paddingLeft: 38, height: 42 }}
-              placeholder="Buscar por DNI, nombre o apellido…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-            />
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            {/* Buscador */}
+            <div style={{ position: "relative", width: 300 }}>
+              <Search
+                size={15}
+                style={{
+                  position: "absolute", left: 13, top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "rgba(74,179,216,0.5)",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                className="ts-input"
+                style={{ ...inputStyle, paddingLeft: 38, height: 42 }}
+                placeholder="Buscar por DNI, nombre o apellido…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </div>
+
+            {/* Filtro Carrera */}
+            <div style={{ position: "relative", width: 220 }}>
+              <select
+                className="ts-input"
+                style={{ ...selectStyle, height: 42, paddingLeft: 14 }}
+                value={carreraFilter}
+                onChange={(e) => {
+                  setCarreraFilter(e.target.value);
+                  if (page !== 1) navigatePage(1);
+                }}
+              >
+                <option value="">Todas las Carreras</option>
+                {CARRERAS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+            </div>
+
+            <button
+              className="ts-btn-primary"
+              style={{ ...primaryBtn, height: 42 }}
+              onClick={() => setModalAlumno(true)}
+            >
+              <Plus size={14} />
+              Nuevo Alumno
+            </button>
           </div>
         </div>
 
-        {/* ── ALERTAS ────────────────────────────────────────── */}
-        {errorMsg && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "12px 16px", borderRadius: 10,
-            background: "rgba(127,29,29,0.25)",
-            border: "1px solid rgba(248,113,113,0.3)",
-            color: "#fca5a5", fontSize: 13,
-            animation: "alertIn .3s both",
-          }}>
-            <AlertTriangle size={15} />
-            {errorMsg}
-          </div>
-        )}
-        {successMsg && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "12px 16px", borderRadius: 10,
-            background: "rgba(6,78,59,0.25)",
-            border: "1px solid rgba(52,211,153,0.3)",
-            color: "#6ee7b7", fontSize: 13,
-            animation: "alertIn .3s both",
-          }}>
-            <CheckCircle size={15} />
-            {successMsg}
-          </div>
-        )}
+        {/* ── ALERTAS GLOBALES ───────────────────────────────── */}
+        <AlertDialog
+          open={!!alertInfo}
+          type={alertInfo?.type || "success"}
+          message={alertInfo?.msg || ""}
+          onClose={() => setAlertInfo(null)}
+        />
 
         {/* ── TABLA ──────────────────────────────────────────── */}
         <div style={{ ...cardStyle, overflow: "hidden" }}>
@@ -735,43 +569,53 @@ export default function AlumnosView() {
                 </thead>
                 <tbody>
                   {alumnos.map((a, idx) => (
-                    <tr key={a.id} style={{ borderBottom:"1px solid rgba(42,109,181,0.08)", transition:"background .15s" }}>
-                      <td style={{ padding:"11px 14px", color:"rgba(74,179,216,0.4)", fontSize:11 }}>
-                        {(page-1)*PAGE_SIZE+idx+1}
+                    <tr key={a.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)", transition: "background .15s" }}>
+                      <td style={{ padding: "11px 14px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>
+                        {(page - 1) * PAGE_SIZE + idx + 1}
                       </td>
-                      <td style={{ padding:"11px 14px" }}>
-                        <span style={{ fontFamily:"monospace", fontSize:12, padding:"3px 8px", borderRadius:5, background:"rgba(42,109,181,0.12)", border:"1px solid rgba(42,109,181,0.2)", color:"#7cc8e8" }}>
+                      <td style={{ padding: "11px 14px" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
                           {a.dni}
                         </span>
                       </td>
                       {/* Apellidos + Nombres en una celda */}
-                      <td style={{ padding:"11px 14px", minWidth:160 }}>
-                        <div style={{ fontWeight:700, color:"#dbeafe", fontSize:13 }}>{a.apellidos}</div>
-                        <div style={{ color:"rgba(180,210,240,0.7)", fontSize:12 }}>{a.nombres}</div>
+                      <td style={{ padding: "11px 14px", minWidth: 160 }}>
+                        <div style={{ fontWeight: 700, color: "#dbeafe", fontSize: 13 }}>{a.apellidos}</div>
+                        <div style={{ color: "rgba(180,210,240,0.7)", fontSize: 12 }}>{a.nombres}</div>
                       </td>
-                      <td style={{ padding:"11px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         <span style={carreraBadgeStyle(a.carrera)}>
                           {a.carrera}
                         </span>
                       </td>
                       {/* Celular */}
-                      <td style={{ padding:"11px 14px" }}>
+                      <td style={{ padding: "11px 14px" }}>
                         {a.celular
-                          ? <div style={{ display:"flex",alignItems:"center",gap:5 }}><Phone size={11} style={{color:"rgba(74,179,216,.5)",flexShrink:0}}/><span style={{fontSize:12,color:"rgba(180,210,240,.8)"}}>{a.celular}</span></div>
-                          : <span style={{color:"rgba(74,179,216,.2)",fontSize:11}}>—</span>}
+                          ? <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Phone size={11} style={{ color: "rgba(74,179,216,.5)", flexShrink: 0 }} /><span style={{ fontSize: 12, color: "rgba(180,210,240,.8)" }}>{a.celular}</span></div>
+                          : <span style={{ color: "rgba(74,179,216,.2)", fontSize: 11 }}>—</span>}
                       </td>
                       {/* Acciones */}
-                      <td style={{ padding:"11px 14px" }}>
-                        <div style={{ display:"flex", gap:4 }}>
-                          <button className="ts-row-action" style={{color:"rgba(74,179,216,0.6)"}} title="Ver detalle" onClick={()=>{setVerTarget(a);setModalVer(true);}}>
-                            <Eye size={13}/>
+                      <td style={{ padding: "11px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <button className="ts-btn-secondary" style={{ ...secondaryBtn, padding: "5px 10px", fontSize: 11, background: "rgba(74,179,216,0.1)", borderColor: "rgba(74,179,216,0.25)", color: "#4ab3d8", height: 28 }} title="Módulos" onClick={() => { setMatriculadosTarget(a); setModalMatriculados(true); loadMatriculasAlumno(a.id); }}>
+                            <Layers size={12} />
+                            Módulos
                           </button>
-                          <button className="ts-row-action edit" style={{color:"rgba(74,179,216,0.5)"}} title="Editar" onClick={()=>{setEditForm({...a});setModalEditar(true);}}>
-                            <Pencil size={13}/>
+                          <button className="ts-btn-secondary" style={{ ...secondaryBtn, padding: "5px 10px", fontSize: 11, background: "rgba(52,211,153,0.1)", borderColor: "rgba(52,211,153,0.25)", color: "#34d399", height: 28 }} title="Matricular" onClick={() => { setMatriculaTarget(a); setMatriculaForm(p => ({ ...p, alumno_id: a.id })); setModalMatricula(true); }}>
+                            <BookOpen size={12} />
+                            Matricular
                           </button>
-                          <button className="ts-row-action delete" style={{color:"rgba(248,113,113,0.4)"}} title="Eliminar" onClick={()=>{setDeleteTarget(a);setModalEliminar(true);}}>
-                            <Trash2 size={13}/>
-                          </button>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            <button className="ts-row-action" style={{ color: "rgba(74,179,216,0.6)" }} title="Ver detalle" onClick={() => { setVerTarget(a); setModalVer(true); }}>
+                              <Eye size={13} />
+                            </button>
+                            <button className="ts-row-action edit" style={{ color: "rgba(74,179,216,0.5)" }} title="Editar" onClick={() => { setEditForm({ ...a }); setModalEditar(true); }}>
+                              <Pencil size={13} />
+                            </button>
+                            <button className="ts-row-action delete" style={{ color: "rgba(248,113,113,0.4)" }} title="Eliminar" onClick={() => { setDeleteTarget(a); setModalEliminar(true); }}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -848,60 +692,60 @@ export default function AlumnosView() {
           .ftab.act { background:rgba(42,109,181,.2); border-color:rgba(74,179,216,.35); color:#dbeafe; }
           .ftab:hover:not(.act) { background:rgba(42,109,181,.1); color:#dbeafe; }
         `}</style>
-        <form onSubmit={handleCreateAlumno} style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <form onSubmit={handleCreateAlumno} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* Tabs */}
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {(["basico","nacimiento","domicilio","contacto","apoderado"] as const).map(t => (
-              <button key={t} type="button" className={`ftab${formTab===t?" act":""}`} onClick={()=>setFormTab(t)}>
-                {t==="basico"?"Básico":t==="nacimiento"?"Nacimiento":t==="domicilio"?"Domicilio":t==="contacto"?"Contacto":"Apoderado"}
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {(["basico", "nacimiento", "domicilio", "contacto", "apoderado"] as const).map(t => (
+              <button key={t} type="button" className={`ftab${formTab === t ? " act" : ""}`} onClick={() => setFormTab(t)}>
+                {t === "basico" ? "Básico" : t === "nacimiento" ? "Nacimiento" : t === "domicilio" ? "Domicilio" : t === "contacto" ? "Contacto" : "Apoderado"}
               </button>
             ))}
           </div>
 
           {/* Básico */}
-          {formTab==="basico" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} placeholder="Ej: 12345678" value={alumnoForm.dni} onChange={e=>setAlumnoForm(p=>({...p,dni:e.target.value}))} maxLength={12} required /></div>
-            <div><label style={fieldLabel}>Carrera *</label><div style={{position:"relative"}}><select className="ts-input" style={selectStyle} value={alumnoForm.carrera} onChange={e=>setAlumnoForm(p=>({...p,carrera:e.target.value}))} required><option value="">— Seleccionar —</option>{CARRERAS.map(c=><option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:"rgba(74,179,216,0.5)"}}/></div></div>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} placeholder="Ej: Juan Carlos" value={alumnoForm.nombres} onChange={e=>setAlumnoForm(p=>({...p,nombres:e.target.value}))} required /></div>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} placeholder="Ej: García Ríos" value={alumnoForm.apellidos} onChange={e=>setAlumnoForm(p=>({...p,apellidos:e.target.value}))} required /></div>
+          {formTab === "basico" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} placeholder="Ej: 12345678" value={alumnoForm.dni} onChange={e => setAlumnoForm(p => ({ ...p, dni: e.target.value }))} maxLength={12} required /></div>
+            <div><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={alumnoForm.carrera} onChange={e => setAlumnoForm(p => ({ ...p, carrera: e.target.value }))} required><option value="">— Seleccionar —</option>{CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} placeholder="Ej: Juan Carlos" value={alumnoForm.nombres} onChange={e => setAlumnoForm(p => ({ ...p, nombres: e.target.value }))} required /></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} placeholder="Ej: García Ríos" value={alumnoForm.apellidos} onChange={e => setAlumnoForm(p => ({ ...p, apellidos: e.target.value }))} required /></div>
           </div>}
 
           {/* Nacimiento */}
-          {formTab==="nacimiento" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Fecha de Nacimiento</label><input type="date" className="ts-input" style={{...inputStyle,colorScheme:"dark"}} value={alumnoForm.fecha_nacimiento??""} onChange={e=>setAlumnoForm(p=>({...p,fecha_nacimiento:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Distrito de Nacimiento</label><input className="ts-input" style={inputStyle} placeholder="Ej: Miraflores" value={alumnoForm.nac_distrito??""} onChange={e=>setAlumnoForm(p=>({...p,nac_distrito:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Provincia</label><input className="ts-input" style={inputStyle} placeholder="Ej: Lima" value={alumnoForm.nac_provincia??""} onChange={e=>setAlumnoForm(p=>({...p,nac_provincia:e.target.value}))} /></div>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Departamento</label><input className="ts-input" style={inputStyle} placeholder="Ej: Lima" value={alumnoForm.nac_departamento??""} onChange={e=>setAlumnoForm(p=>({...p,nac_departamento:e.target.value}))} /></div>
+          {formTab === "nacimiento" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Fecha de Nacimiento</label><input type="date" className="ts-input" style={{ ...inputStyle, colorScheme: "dark" }} value={alumnoForm.fecha_nacimiento ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, fecha_nacimiento: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Distrito de Nacimiento</label><input className="ts-input" style={inputStyle} placeholder="Ej: Miraflores" value={alumnoForm.nac_distrito ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, nac_distrito: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Provincia</label><input className="ts-input" style={inputStyle} placeholder="Ej: Lima" value={alumnoForm.nac_provincia ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, nac_provincia: e.target.value }))} /></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Departamento</label><input className="ts-input" style={inputStyle} placeholder="Ej: Lima" value={alumnoForm.nac_departamento ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, nac_departamento: e.target.value }))} /></div>
           </div>}
 
           {/* Domicilio */}
-          {formTab==="domicilio" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Dirección</label><input className="ts-input" style={inputStyle} placeholder="Av. Ejemplo 123" value={alumnoForm.direccion??""} onChange={e=>setAlumnoForm(p=>({...p,direccion:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Distrito</label><input className="ts-input" style={inputStyle} value={alumnoForm.dir_distrito??""} onChange={e=>setAlumnoForm(p=>({...p,dir_distrito:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Referencia</label><input className="ts-input" style={inputStyle} placeholder="Cerca de…" value={alumnoForm.dir_referencia??""} onChange={e=>setAlumnoForm(p=>({...p,dir_referencia:e.target.value}))} /></div>
+          {formTab === "domicilio" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Dirección</label><input className="ts-input" style={inputStyle} placeholder="Av. Ejemplo 123" value={alumnoForm.direccion ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, direccion: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Distrito</label><input className="ts-input" style={inputStyle} value={alumnoForm.dir_distrito ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, dir_distrito: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Referencia</label><input className="ts-input" style={inputStyle} placeholder="Cerca de…" value={alumnoForm.dir_referencia ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, dir_referencia: e.target.value }))} /></div>
           </div>}
 
           {/* Contacto */}
-          {formTab==="contacto" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} placeholder="01-XXXXXXX" value={alumnoForm.telefono??""} onChange={e=>setAlumnoForm(p=>({...p,telefono:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} placeholder="9XXXXXXXX" value={alumnoForm.celular??""} onChange={e=>setAlumnoForm(p=>({...p,celular:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={alumnoForm.correo??""} onChange={e=>setAlumnoForm(p=>({...p,correo:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={alumnoForm.facebook??""} onChange={e=>setAlumnoForm(p=>({...p,facebook:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={alumnoForm.colegio??""} onChange={e=>setAlumnoForm(p=>({...p,colegio:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Distrito del Colegio</label><input className="ts-input" style={inputStyle} value={alumnoForm.colegio_distrito??""} onChange={e=>setAlumnoForm(p=>({...p,colegio_distrito:e.target.value}))} /></div>
+          {formTab === "contacto" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} placeholder="01-XXXXXXX" value={alumnoForm.telefono ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, telefono: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} placeholder="9XXXXXXXX" value={alumnoForm.celular ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, celular: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={alumnoForm.correo ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, correo: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={alumnoForm.facebook ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, facebook: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={alumnoForm.colegio ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, colegio: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Distrito del Colegio</label><input className="ts-input" style={inputStyle} value={alumnoForm.colegio_distrito ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, colegio_distrito: e.target.value }))} /></div>
           </div>}
 
           {/* Apoderado */}
-          {formTab==="apoderado" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-            <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Nombre del Apoderado</label><input className="ts-input" style={inputStyle} value={alumnoForm.apoderado_nombre??""} onChange={e=>setAlumnoForm(p=>({...p,apoderado_nombre:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Parentesco</label><input className="ts-input" style={inputStyle} placeholder="Ej: Padre, Madre, Tutor" value={alumnoForm.apoderado_parentesco??""} onChange={e=>setAlumnoForm(p=>({...p,apoderado_parentesco:e.target.value}))} /></div>
-            <div><label style={fieldLabel}>Celular del Apoderado</label><input className="ts-input" style={inputStyle} value={alumnoForm.apoderado_celular??""} onChange={e=>setAlumnoForm(p=>({...p,apoderado_celular:e.target.value}))} /></div>
+          {formTab === "apoderado" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombre del Apoderado</label><input className="ts-input" style={inputStyle} value={alumnoForm.apoderado_nombre ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, apoderado_nombre: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Parentesco</label><input className="ts-input" style={inputStyle} placeholder="Ej: Padre, Madre, Tutor" value={alumnoForm.apoderado_parentesco ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, apoderado_parentesco: e.target.value }))} /></div>
+            <div><label style={fieldLabel}>Celular del Apoderado</label><input className="ts-input" style={inputStyle} value={alumnoForm.apoderado_celular ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, apoderado_celular: e.target.value }))} /></div>
           </div>}
 
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:10, marginTop:4, borderTop:"1px solid rgba(42,109,181,.12)", paddingTop:14 }}>
-            <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={()=>{setModalAlumno(false);setFormTab("basico");}}>Cancelar</button>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4, borderTop: "1px solid rgba(42,109,181,.12)", paddingTop: 14 }}>
+            <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={() => { setModalAlumno(false); setFormTab("basico"); }}>Cancelar</button>
             <button type="submit" className="ts-btn-primary" style={primaryBtn} disabled={submitting}>
-              <UserPlus size={14}/>{submitting?"Registrando…":"Registrar Alumno"}
+              <UserPlus size={14} />{submitting ? "Registrando…" : "Registrar Alumno"}
             </button>
           </div>
         </form>
@@ -910,101 +754,119 @@ export default function AlumnosView() {
       {/* ── Modal: Editar Alumno ── */}
       <Modal open={modalEditar} onClose={() => { setModalEditar(false); setFormTab("basico"); }} title="Editar Alumno">
         {editForm && (
-          <form onSubmit={handleEditAlumno} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {(["basico","nacimiento","domicilio","contacto","apoderado"] as const).map(t => (
-                <button key={t} type="button" className={`ftab${formTab===t?" act":""}`} onClick={()=>setFormTab(t)}>
-                  {t==="basico"?"Básico":t==="nacimiento"?"Nacimiento":t==="domicilio"?"Domicilio":t==="contacto"?"Contacto":"Apoderado"}
+          <form onSubmit={handleEditAlumno} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(["basico", "nacimiento", "domicilio", "contacto", "apoderado"] as const).map(t => (
+                <button key={t} type="button" className={`ftab${formTab === t ? " act" : ""}`} onClick={() => setFormTab(t)}>
+                  {t === "basico" ? "Básico" : t === "nacimiento" ? "Nacimiento" : t === "domicilio" ? "Domicilio" : t === "contacto" ? "Contacto" : "Apoderado"}
                 </button>
               ))}
             </div>
 
-            {formTab==="basico" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} value={editForm.dni} onChange={e=>setEditForm(p=>p?{...p,dni:e.target.value}:p)} maxLength={12} required /></div>
-              <div><label style={fieldLabel}>Carrera *</label><div style={{position:"relative"}}><select className="ts-input" style={selectStyle} value={editForm.carrera} onChange={e=>setEditForm(p=>p?{...p,carrera:e.target.value}:p)} required><option value="">— Seleccionar —</option>{CARRERAS.map(c=><option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",pointerEvents:"none",color:"rgba(74,179,216,0.5)"}}/></div></div>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} value={editForm.nombres} onChange={e=>setEditForm(p=>p?{...p,nombres:e.target.value}:p)} required /></div>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} value={editForm.apellidos} onChange={e=>setEditForm(p=>p?{...p,apellidos:e.target.value}:p)} required /></div>
+            {formTab === "basico" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} value={editForm.dni} onChange={e => setEditForm(p => p ? { ...p, dni: e.target.value } : p)} maxLength={12} required /></div>
+              <div><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={editForm.carrera} onChange={e => setEditForm(p => p ? { ...p, carrera: e.target.value } : p)} required><option value="">— Seleccionar —</option>{CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} value={editForm.nombres} onChange={e => setEditForm(p => p ? { ...p, nombres: e.target.value } : p)} required /></div>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} value={editForm.apellidos} onChange={e => setEditForm(p => p ? { ...p, apellidos: e.target.value } : p)} required /></div>
             </div>}
 
-            {formTab==="nacimiento" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Fecha de Nacimiento</label><input type="date" className="ts-input" style={{...inputStyle,colorScheme:"dark"}} value={editForm.fecha_nacimiento??""} onChange={e=>setEditForm(p=>p?{...p,fecha_nacimiento:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Distrito de Nacimiento</label><input className="ts-input" style={inputStyle} value={editForm.nac_distrito??""} onChange={e=>setEditForm(p=>p?{...p,nac_distrito:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Provincia</label><input className="ts-input" style={inputStyle} value={editForm.nac_provincia??""} onChange={e=>setEditForm(p=>p?{...p,nac_provincia:e.target.value}:p)} /></div>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Departamento</label><input className="ts-input" style={inputStyle} value={editForm.nac_departamento??""} onChange={e=>setEditForm(p=>p?{...p,nac_departamento:e.target.value}:p)} /></div>
+            {formTab === "nacimiento" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Fecha de Nacimiento</label><input type="date" className="ts-input" style={{ ...inputStyle, colorScheme: "dark" }} value={editForm.fecha_nacimiento ?? ""} onChange={e => setEditForm(p => p ? { ...p, fecha_nacimiento: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Distrito de Nacimiento</label><input className="ts-input" style={inputStyle} value={editForm.nac_distrito ?? ""} onChange={e => setEditForm(p => p ? { ...p, nac_distrito: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Provincia</label><input className="ts-input" style={inputStyle} value={editForm.nac_provincia ?? ""} onChange={e => setEditForm(p => p ? { ...p, nac_provincia: e.target.value } : p)} /></div>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Departamento</label><input className="ts-input" style={inputStyle} value={editForm.nac_departamento ?? ""} onChange={e => setEditForm(p => p ? { ...p, nac_departamento: e.target.value } : p)} /></div>
             </div>}
 
-            {formTab==="domicilio" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Dirección</label><input className="ts-input" style={inputStyle} value={editForm.direccion??""} onChange={e=>setEditForm(p=>p?{...p,direccion:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Distrito</label><input className="ts-input" style={inputStyle} value={editForm.dir_distrito??""} onChange={e=>setEditForm(p=>p?{...p,dir_distrito:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Referencia</label><input className="ts-input" style={inputStyle} value={editForm.dir_referencia??""} onChange={e=>setEditForm(p=>p?{...p,dir_referencia:e.target.value}:p)} /></div>
+            {formTab === "domicilio" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Dirección</label><input className="ts-input" style={inputStyle} value={editForm.direccion ?? ""} onChange={e => setEditForm(p => p ? { ...p, direccion: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Distrito</label><input className="ts-input" style={inputStyle} value={editForm.dir_distrito ?? ""} onChange={e => setEditForm(p => p ? { ...p, dir_distrito: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Referencia</label><input className="ts-input" style={inputStyle} value={editForm.dir_referencia ?? ""} onChange={e => setEditForm(p => p ? { ...p, dir_referencia: e.target.value } : p)} /></div>
             </div>}
 
-            {formTab==="contacto" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} value={editForm.telefono??""} onChange={e=>setEditForm(p=>p?{...p,telefono:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} value={editForm.celular??""} onChange={e=>setEditForm(p=>p?{...p,celular:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={editForm.correo??""} onChange={e=>setEditForm(p=>p?{...p,correo:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={editForm.facebook??""} onChange={e=>setEditForm(p=>p?{...p,facebook:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={editForm.colegio??""} onChange={e=>setEditForm(p=>p?{...p,colegio:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Distrito del Colegio</label><input className="ts-input" style={inputStyle} value={editForm.colegio_distrito??""} onChange={e=>setEditForm(p=>p?{...p,colegio_distrito:e.target.value}:p)} /></div>
+            {formTab === "contacto" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} value={editForm.telefono ?? ""} onChange={e => setEditForm(p => p ? { ...p, telefono: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} value={editForm.celular ?? ""} onChange={e => setEditForm(p => p ? { ...p, celular: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={editForm.correo ?? ""} onChange={e => setEditForm(p => p ? { ...p, correo: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={editForm.facebook ?? ""} onChange={e => setEditForm(p => p ? { ...p, facebook: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={editForm.colegio ?? ""} onChange={e => setEditForm(p => p ? { ...p, colegio: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Distrito del Colegio</label><input className="ts-input" style={inputStyle} value={editForm.colegio_distrito ?? ""} onChange={e => setEditForm(p => p ? { ...p, colegio_distrito: e.target.value } : p)} /></div>
             </div>}
 
-            {formTab==="apoderado" && <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <div style={{gridColumn:"1/-1"}}><label style={fieldLabel}>Nombre del Apoderado</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_nombre??""} onChange={e=>setEditForm(p=>p?{...p,apoderado_nombre:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Parentesco</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_parentesco??""} onChange={e=>setEditForm(p=>p?{...p,apoderado_parentesco:e.target.value}:p)} /></div>
-              <div><label style={fieldLabel}>Celular del Apoderado</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_celular??""} onChange={e=>setEditForm(p=>p?{...p,apoderado_celular:e.target.value}:p)} /></div>
+            {formTab === "apoderado" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombre del Apoderado</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_nombre ?? ""} onChange={e => setEditForm(p => p ? { ...p, apoderado_nombre: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Parentesco</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_parentesco ?? ""} onChange={e => setEditForm(p => p ? { ...p, apoderado_parentesco: e.target.value } : p)} /></div>
+              <div><label style={fieldLabel}>Celular del Apoderado</label><input className="ts-input" style={inputStyle} value={editForm.apoderado_celular ?? ""} onChange={e => setEditForm(p => p ? { ...p, apoderado_celular: e.target.value } : p)} /></div>
             </div>}
 
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:10, marginTop:4, borderTop:"1px solid rgba(42,109,181,.12)", paddingTop:14 }}>
-              <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={()=>{setModalEditar(false);setFormTab("basico");}}>Cancelar</button>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4, borderTop: "1px solid rgba(42,109,181,.12)", paddingTop: 14 }}>
+              <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={() => { setModalEditar(false); setFormTab("basico"); }}>Cancelar</button>
               <button type="submit" className="ts-btn-primary" style={primaryBtn} disabled={submitting}>
-                <Pencil size={14}/>{submitting?"Guardando…":"Guardar Cambios"}
+                <Pencil size={14} />{submitting ? "Guardando…" : "Guardar Cambios"}
               </button>
             </div>
           </form>
         )}
       </Modal>
 
-      {/* ── Modal: Matricular ── */}
-      <Modal open={modalMatricula} onClose={() => setModalMatricula(false)} title="Registrar Matrícula">
+      <Modal open={modalMatricula} onClose={() => { setModalMatricula(false); setMatriculaTarget(null); }} title="Registrar Matrícula">
         <form onSubmit={handleMatricula} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label style={fieldLabel}>Alumno</label>
-            <div style={{ position: "relative" }}>
-              <select
-                className="ts-input"
-                style={selectStyle}
-                value={matriculaForm.alumno_id}
-                onChange={(e) => setMatriculaForm((p) => ({ ...p, alumno_id: e.target.value }))}
-                required
-              >
-                <option value="">— Seleccionar alumno —</option>
-                {alumnos.map((a) => (
-                  <option key={a.id} value={a.id}>{a.apellidos}, {a.nombres} ({a.dni})</option>
-                ))}
-              </select>
-              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+          {matriculaTarget && (
+            <div style={{ padding: "10px 14px", background: "rgba(42,109,181,0.1)", borderRadius: 10, border: "1px solid rgba(42,109,181,0.2)" }}>
+              <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Alumno seleccionado</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#dbeafe" }}>{matriculaTarget.apellidos}, {matriculaTarget.nombres}</div>
+              <div style={{ fontSize: 11, color: "rgba(74,179,216,0.8)" }}>Carrera: {matriculaTarget.carrera}</div>
             </div>
-          </div>
+          )}
           <div>
-            <label style={fieldLabel}>Módulo</label>
+            <label style={fieldLabel}>Módulo *</label>
             <div style={{ position: "relative" }}>
               <select
                 className="ts-input"
                 style={selectStyle}
                 value={matriculaForm.modulo_id}
-                onChange={(e) => setMatriculaForm((p) => ({ ...p, modulo_id: e.target.value }))}
+                onChange={(e) => {
+                  const mod = modulos.find(m => m.id === e.target.value);
+                  setMatriculaForm((p) => ({ ...p, modulo_id: e.target.value, carrera_id: mod?.carrera_id ?? p.carrera_id }));
+                }}
                 required
               >
                 <option value="">— Seleccionar módulo —</option>
-                {modulos.map((m) => (
-                  <option key={m.id} value={m.id}>{m.nombre}</option>
-                ))}
+                {modulos
+                  .filter(m => !matriculaTarget || m.carreras?.nombre === matriculaTarget.carrera)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nombre} {m.horario ? `(${m.horario})` : ""}
+                    </option>
+                  ))}
+              </select>
+              <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+            </div>
+          </div>
+          <div style={{ display: "none" }}>
+            <label style={fieldLabel}>Turno *</label>
+            <div style={{ position: "relative" }}>
+              <select
+                className="ts-input"
+                style={selectStyle}
+                value={matriculaForm.turno}
+                onChange={(e) => setMatriculaForm((p) => ({ ...p, turno: e.target.value }))}
+                required
+              >
+                <optgroup label="Turnos regulares">
+                  <option value="mañana">Mañana (08:00 – 12:00)</option>
+                  <option value="tarde">Tarde (13:00 – 17:00)</option>
+                  <option value="noche">Noche (17:00 – 20:30)</option>
+                </optgroup>
+                <optgroup label="Turnos especiales">
+                  <option value="sabado_domingo_am">Sábado y Domingo AM (08:00 – 13:00)</option>
+                  <option value="sabado_domingo_full">Sábado y Domingo Full (08:00 – 17:00)</option>
+                </optgroup>
               </select>
               <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
-            <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={() => setModalMatricula(false)}>
+            <button type="button" className="ts-btn-secondary" style={secondaryBtn} onClick={() => { setModalMatricula(false); setMatriculaTarget(null); }}>
               Cancelar
             </button>
             <button type="submit" className="ts-btn-primary" style={primaryBtn} disabled={submitting}>
@@ -1016,41 +878,41 @@ export default function AlumnosView() {
       </Modal>
 
       {/* ── Modal: Ver Detalle Alumno ── */}
-      <Modal open={modalVer} onClose={()=>{setModalVer(false);setVerTarget(null);}} title="Ficha del Alumno">
+      <Modal open={modalVer} onClose={() => { setModalVer(false); setVerTarget(null); }} title="Ficha del Alumno">
         {verTarget && (() => {
           const v = verTarget;
-          const empty = <span style={{color:"rgba(74,179,216,.2)",fontStyle:"italic",fontSize:12}}>—</span>;
-          const row = (label: string, value?: string|null) => (
-            <div style={{display:"grid",gridTemplateColumns:"140px 1fr",gap:"2px 10px",padding:"7px 0",borderBottom:"1px solid rgba(42,109,181,.07)"}}>
-              <span style={{fontSize:11,color:"rgba(74,179,216,.45)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",paddingTop:2}}>{label}</span>
-              <span style={{fontSize:13,color: value ? "#dbeafe" : "inherit",wordBreak:"break-word"}}>{value || empty}</span>
+          const empty = <span style={{ color: "rgba(74,179,216,.2)", fontStyle: "italic", fontSize: 12 }}>—</span>;
+          const row = (label: string, value?: string | null) => (
+            <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "2px 10px", padding: "7px 0", borderBottom: "1px solid rgba(42,109,181,.07)" }}>
+              <span style={{ fontSize: 11, color: "rgba(74,179,216,.45)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", paddingTop: 2 }}>{label}</span>
+              <span style={{ fontSize: 13, color: value ? "#dbeafe" : "inherit", wordBreak: "break-word" }}>{value || empty}</span>
             </div>
           );
           const sec = (title: string, icon: React.ReactNode) => (
-            <div style={{display:"flex",alignItems:"center",gap:7,margin:"16px 0 4px",paddingBottom:5,borderBottom:"2px solid rgba(42,109,181,.2)"}}>
-              {icon}<span style={{fontSize:10,fontWeight:800,color:"rgba(74,179,216,.7)",textTransform:"uppercase",letterSpacing:".12em"}}>{title}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, margin: "16px 0 4px", paddingBottom: 5, borderBottom: "2px solid rgba(42,109,181,.2)" }}>
+              {icon}<span style={{ fontSize: 10, fontWeight: 800, color: "rgba(74,179,216,.7)", textTransform: "uppercase", letterSpacing: ".12em" }}>{title}</span>
             </div>
           );
           return (
-            <div style={{maxHeight:"65vh",overflowY:"auto",paddingRight:4,fontSize:13}}>
-              {sec("Identificación", <Users size={12} style={{color:"rgba(74,179,216,.7)"}}/>)}
+            <div style={{ maxHeight: "65vh", overflowY: "auto", paddingRight: 4, fontSize: 13 }}>
+              {sec("Identificación", <Users size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
               {row("DNI", v.dni)}
               {row("Nombres", v.nombres)}
               {row("Apellidos", v.apellidos)}
               {row("Carrera", v.carrera)}
 
-              {sec("Datos de Nacimiento", <MapPin size={12} style={{color:"rgba(74,179,216,.7)"}}/>)}
-              {row("Fecha de Nacimiento", v.fecha_nacimiento ? new Date(v.fecha_nacimiento+"T00:00:00").toLocaleDateString("es-PE",{day:"2-digit",month:"long",year:"numeric"}) : null)}
+              {sec("Datos de Nacimiento", <MapPin size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
+              {row("Fecha de Nacimiento", v.fecha_nacimiento ? new Date(v.fecha_nacimiento + "T00:00:00").toLocaleDateString("es-PE", { day: "2-digit", month: "long", year: "numeric" }) : null)}
               {row("Distrito", v.nac_distrito)}
               {row("Provincia", v.nac_provincia)}
               {row("Departamento", v.nac_departamento)}
 
-              {sec("Domicilio", <MapPin size={12} style={{color:"rgba(74,179,216,.7)"}}/>)}
+              {sec("Domicilio", <MapPin size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
               {row("Dirección", v.direccion)}
               {row("Distrito", v.dir_distrito)}
               {row("Referencia", v.dir_referencia)}
 
-              {sec("Contacto", <Phone size={12} style={{color:"rgba(74,179,216,.7)"}}/>)}
+              {sec("Contacto", <Phone size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
               {row("Teléfono", v.telefono)}
               {row("Celular", v.celular)}
               {row("Correo electrónico", v.correo)}
@@ -1058,15 +920,15 @@ export default function AlumnosView() {
               {row("Colegio", v.colegio)}
               {row("Distrito del Colegio", v.colegio_distrito)}
 
-              {sec("Apoderado", <Users size={12} style={{color:"rgba(74,179,216,.7)"}}/>)}
+              {sec("Apoderado", <Users size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
               {row("Nombre", v.apoderado_nombre)}
               {row("Parentesco", v.apoderado_parentesco)}
               {row("Celular", v.apoderado_celular)}
 
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,paddingTop:10,borderTop:"1px solid rgba(42,109,181,.12)"}}>
-                <button className="ts-btn-secondary" style={secondaryBtn} onClick={()=>{setModalVer(false);setVerTarget(null);}}>Cerrar</button>
-                <button className="ts-btn-primary" style={primaryBtn} onClick={()=>{setModalVer(false);setEditForm({...v});setModalEditar(true);setFormTab("basico");}}>
-                  <Pencil size={13}/> Editar
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, paddingTop: 10, borderTop: "1px solid rgba(42,109,181,.12)" }}>
+                <button className="ts-btn-secondary" style={secondaryBtn} onClick={() => { setModalVer(false); setVerTarget(null); }}>Cerrar</button>
+                <button className="ts-btn-primary" style={primaryBtn} onClick={() => { setModalVer(false); setEditForm({ ...v }); setModalEditar(true); setFormTab("basico"); }}>
+                  <Pencil size={13} /> Editar
                 </button>
               </div>
             </div>
@@ -1074,14 +936,88 @@ export default function AlumnosView() {
         })()}
       </Modal>
 
+      {/* ── Modal: Módulos Matriculados ── */}
+      <Modal open={modalMatriculados} onClose={() => { setModalMatriculados(false); setMatriculadosTarget(null); setMatriculasList([]); }} title="Módulos Matriculados">
+        {matriculadosTarget && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ padding: "10px 14px", background: "rgba(42,109,181,0.1)", borderRadius: 10, border: "1px solid rgba(42,109,181,0.2)" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#dbeafe" }}>{matriculadosTarget.apellidos}, {matriculadosTarget.nombres}</div>
+              <div style={{ fontSize: 11, color: "rgba(74,179,216,0.8)" }}>{matriculadosTarget.carrera}</div>
+            </div>
+
+            {loadingMatriculas ? (
+              <div style={{ textAlign: "center", padding: "20px", color: "rgba(74,179,216,0.6)" }}>
+                Cargando módulos...
+              </div>
+            ) : matriculasList.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "30px 20px", color: "rgba(74,179,216,0.4)" }}>
+                <Layers size={32} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
+                <p style={{ fontSize: 13 }}>El alumno no tiene matrículas registradas</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "50vh", overflowY: "auto", paddingRight: 4 }}>
+                {matriculasList.map(mat => {
+                  const isFinished = new Date() > new Date(mat.modulos?.fecha_fin || "2099-12-31");
+                  return (
+                    <div key={mat.id} style={{
+                      padding: "12px 16px", borderRadius: 10,
+                      background: "rgba(8,16,34,0.6)",
+                      border: "1px solid rgba(42,109,181,0.15)",
+                      display: "flex", flexDirection: "column", gap: 6
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#dbeafe" }}>{mat.modulos?.nombre || "Módulo Eliminado"}</div>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                          background: isFinished ? "rgba(52,211,153,0.15)" : "rgba(74,179,216,0.15)",
+                          color: isFinished ? "#34d399" : "#4ab3d8",
+                          border: isFinished ? "1px solid rgba(52,211,153,0.3)" : "1px solid rgba(74,179,216,0.3)",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {isFinished ? "FINALIZADO" : "EN CURSO"}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "rgba(180,210,240,0.6)" }}>
+                        <Users size={11} style={{ color: "rgba(74,179,216,0.5)" }} /> Docente: <span style={{ color: "rgba(180,210,240,0.8)" }}>{mat.modulos?.profesor || "No asignado"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "rgba(180,210,240,0.6)", marginTop: 2 }}>
+                        <span>Turno: {mat.turno}</span>
+                        <span>{mat.modulos?.fecha_inicio} al {mat.modulos?.fecha_fin}</span>
+                      </div>
+                      <div style={{ marginTop: 4, display: "flex", gap: 6 }}>
+                        <ReporteMatriculaBtn matriculaId={mat.id} />
+                        <ReporteAsistenciaBtn matriculaId={mat.id} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid rgba(42,109,181,.12)", paddingTop: 14 }}>
+              <button className="ts-btn-secondary" style={secondaryBtn} onClick={() => { setModalMatriculados(false); setMatriculadosTarget(null); }}>Cerrar</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* ── Modal: Confirmar Eliminación ── */}
       <ConfirmDialog
         open={modalEliminar}
         onClose={() => setModalEliminar(false)}
         onConfirm={handleDeleteAlumno}
-        alumno={deleteTarget}
         loading={submitting}
-      />
+        title="Confirmar Eliminación"
+        description="Esta acción no se puede deshacer."
+      >
+        {deleteTarget && (
+          <p style={{ fontSize: 13, color: "rgba(120,160,210,0.75)" }}>
+            <strong style={{ color: "#4ab3d8" }}>{deleteTarget.apellidos}, {deleteTarget.nombres}</strong>
+            <br />
+            <span style={{ fontFamily: "monospace", fontSize: 12 }}>DNI: {deleteTarget.dni}</span>
+          </p>
+        )}
+      </ConfirmDialog>
     </>
   );
 }

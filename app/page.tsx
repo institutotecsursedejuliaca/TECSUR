@@ -12,7 +12,10 @@ import {
   Cpu,
   LogOut,
   Wifi,
+  Shield,
   ScanLine,
+  Layers,
+  Users,
 } from "lucide-react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -24,6 +27,8 @@ import PensionesView from "@/components/PensionesView";
 import AlumnosView from "@/components/AlumnosView";
 import ModulosView from "@/components/ModulosView";
 import IngresoView from "@/components/IngresoView";
+import CarrerasView from "@/components/CarrerasView";
+import AuditoriaView from "@/components/AuditoriaView";
 
 // ── Paleta TECSUR ─────────────────────────────────────────────
 // Azul acero   : #2a6db5
@@ -32,22 +37,47 @@ import IngresoView from "@/components/IngresoView";
 // Fondo oscuro : #060d18
 // -------------------------------------------------------------
 
-type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso";
-//type View = "alumnos" | "ingreso";
-const navItems: {
+type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso" | "carreras" | "auditoria";
+
+interface NavItem {
   id: View;
   label: string;
-  icon: React.ElementType;
+  icon: any;
   description: string;
-  badge?: string;
-}[] = [
-    { id: "ingreso", label: "Control de Ingreso", icon: ScanLine, description: "Asistencia por DNI" },
-    { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
-    // { id: "consulta", label: "Consulta General", icon: Search, description: "Búsqueda por DNI" },
-    // { id: "docentes", label: "Módulo Docentes", icon: GraduationCap, description: "Notas y asistencia" },
-    // { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
-    // { id: "modulos", label: "Módulos", icon: Cpu, description: "Cursos disponibles" },
-  ];
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
+  {
+    title: "Control y Asistencia",
+    items: [
+      { id: "ingreso", label: "Control de Ingreso", icon: ScanLine, description: "Asistencia por DNI" },
+    ],
+  },
+  {
+    title: "Gestión Académica",
+    items: [
+      { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
+      { id: "docentes", label: "Docentes", icon: Users, description: "Notas y asistencias" },
+      { id: "carreras", label: "Carreras", icon: GraduationCap, description: "Gestión de carreras" },
+      { id: "modulos", label: "Módulos", icon: Layers, description: "Módulos por carrera" },
+    ],
+  },
+  {
+    title: "Administración",
+    items: [
+      { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
+      { id: "consulta", label: "Consulta Admin", icon: Search, description: "Reportes DNI" },
+      { id: "auditoria", label: "Auditoría", icon: Shield, description: "Historial de cambios" },
+    ],
+  },
+];
+
+const navItems: NavItem[] = navGroups.flatMap(g => g.items);
 
 export default function HomePage() {
   const router = useRouter();
@@ -294,111 +324,115 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── Separador con label ── */}
-        <div style={{
-          padding: "8px 20px 6px",
-          flexShrink: 0,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
-            <span style={{
-              fontSize: 9, fontWeight: 600,
-              color: "rgba(74,179,216,0.45)",
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-            }}>
-              Módulos
-            </span>
-            <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
-          </div>
-        </div>
+        {/* Separadores dinámicos por grupo en el Nav */}
 
         {/* ── Navigation ── */}
         <nav
           className="ts-scroll"
           style={{ flex: 1, padding: "4px 12px", overflowY: "auto" }}
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {navItems.map((item, i) => {
-              const NavIcon = item.icon;
-              const isActive = activeView === item.id;
-              const isHovered = hovered === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  className={`ts-nav-item${isActive ? " active" : ""}`}
-                  onClick={() => setActiveView(item.id)}
-                  onMouseEnter={() => setHovered(item.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{
-                    animationDelay: `${i * 0.05}s`,
-                    animation: "sidebarIn .4s cubic-bezier(.16,1,.3,1) both",
-                  }}
-                >
-                  {/* shimmer en item activo */}
-                  <span className="shimmer-layer" />
-
-                  {/* barra lateral activa */}
-                  {isActive && <span className="ts-active-bar" />}
-
-                  {/* ícono con fondo */}
-                  <div style={{
-                    width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: isActive
-                      ? "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 100%)"
-                      : isHovered
-                        ? "rgba(42,109,181,0.18)"
-                        : "rgba(42,109,181,0.08)",
-                    border: isActive
-                      ? "1px solid rgba(74,179,216,0.35)"
-                      : "1px solid rgba(42,109,181,0.12)",
-                    transition: "background .2s, border-color .2s",
-                    boxShadow: isActive ? "0 2px 10px rgba(42,109,181,0.35)" : "none",
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {navGroups.map((group, groupIdx) => (
+              <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <div style={{
+                  padding: "4px 8px",
+                  display: "flex", alignItems: "center", gap: 8,
+                  marginTop: groupIdx > 0 ? 8 : 4,
+                }}>
+                  <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
+                  <span style={{
+                    fontSize: 9, fontWeight: 600,
+                    color: "rgba(74,179,216,0.45)",
+                    letterSpacing: "0.15em",
+                    textTransform: "uppercase",
                   }}>
-                    <NavIcon
-                      size={16}
+                    {group.title}
+                  </span>
+                  <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
+                </div>
+                
+                {group.items.map((item, i) => {
+                  const NavIcon = item.icon;
+                  const isActive = activeView === item.id;
+                  const isHovered = hovered === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      className={`ts-nav-item${isActive ? " active" : ""}`}
+                      onClick={() => setActiveView(item.id)}
+                      onMouseEnter={() => setHovered(item.id)}
+                      onMouseLeave={() => setHovered(null)}
                       style={{
-                        color: isActive ? "#4ab3d8" : isHovered ? "#7cc8e8" : "rgba(120,160,210,0.7)",
-                        transition: "color .2s",
+                        animationDelay: `${(groupIdx * 3 + i) * 0.05}s`,
+                        animation: "sidebarIn .4s cubic-bezier(.16,1,.3,1) both",
                       }}
-                    />
-                  </div>
+                    >
+                      {/* shimmer en item activo */}
+                      <span className="shimmer-layer" />
 
-                  {/* texto */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 13, fontWeight: isActive ? 600 : 500,
-                      color: isActive ? "#dbeafe" : "rgba(180,210,240,0.8)",
-                      transition: "color .2s",
-                      lineHeight: 1.3,
-                    }}>
-                      {item.label}
-                    </div>
-                    <div style={{
-                      fontSize: 11,
-                      color: isActive ? "rgba(74,179,216,0.65)" : "rgba(100,140,190,0.5)",
-                      transition: "color .2s",
-                      marginTop: 1,
-                    }}>
-                      {item.description}
-                    </div>
-                  </div>
+                      {/* barra lateral activa */}
+                      {isActive && <span className="ts-active-bar" />}
 
-                  {/* chevron */}
-                  <ChevronRight
-                    size={13}
-                    style={{
-                      color: isActive ? "rgba(74,179,216,0.7)" : "transparent",
-                      transition: "color .2s, transform .2s",
-                      transform: isActive ? "translateX(0)" : "translateX(-4px)",
-                      flexShrink: 0,
-                    }}
-                  />
-                </button>
-              );
-            })}
+                      {/* ícono con fondo */}
+                      <div style={{
+                        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: isActive
+                          ? "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 100%)"
+                          : isHovered
+                            ? "rgba(42,109,181,0.18)"
+                            : "rgba(42,109,181,0.08)",
+                        border: isActive
+                          ? "1px solid rgba(74,179,216,0.35)"
+                          : "1px solid rgba(42,109,181,0.12)",
+                        transition: "background .2s, border-color .2s",
+                        boxShadow: isActive ? "0 2px 10px rgba(42,109,181,0.35)" : "none",
+                      }}>
+                        <NavIcon
+                          size={16}
+                          style={{
+                            color: isActive ? "#4ab3d8" : isHovered ? "#7cc8e8" : "rgba(120,160,210,0.7)",
+                            transition: "color .2s",
+                          }}
+                        />
+                      </div>
+
+                      {/* texto */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: 13, fontWeight: isActive ? 600 : 500,
+                          color: isActive ? "#dbeafe" : "rgba(180,210,240,0.8)",
+                          transition: "color .2s",
+                          lineHeight: 1.3,
+                        }}>
+                          {item.label}
+                        </div>
+                        <div style={{
+                          fontSize: 11,
+                          color: isActive ? "rgba(74,179,216,0.65)" : "rgba(100,140,190,0.5)",
+                          transition: "color .2s",
+                          marginTop: 1,
+                        }}>
+                          {item.description}
+                        </div>
+                      </div>
+
+                      {/* chevron */}
+                      <ChevronRight
+                        size={13}
+                        style={{
+                          color: isActive ? "rgba(74,179,216,0.7)" : "transparent",
+                          transition: "color .2s, transform .2s",
+                          transform: isActive ? "translateX(0)" : "translateX(-4px)",
+                          flexShrink: 0,
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </nav>
 
@@ -530,12 +564,14 @@ export default function HomePage() {
           }}
         >
           <div className="ts-view-fade" key={activeView}>
-            {activeView === "consulta" && <ConsultaAdminView />}
-            {activeView === "docentes" && <DocentesView />}
+            {activeView === "consulta"  && <ConsultaAdminView />}
+            {activeView === "docentes"  && <DocentesView />}
             {activeView === "pensiones" && <PensionesView />}
-            {activeView === "alumnos" && <AlumnosView />}
-            {activeView === "modulos" && <ModulosView />}
-            {activeView === "ingreso" && <IngresoView />}
+            {activeView === "alumnos"   && <AlumnosView />}
+            {activeView === "modulos"   && <ModulosView onNavigate={(view) => setActiveView(view as any)} />}
+            {activeView === "ingreso"   && <IngresoView />}
+            {activeView === "carreras"  && <CarrerasView />}
+            {activeView === "auditoria" && <AuditoriaView />}
           </div>
         </main>
       </div>

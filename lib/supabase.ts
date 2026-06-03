@@ -5,13 +5,27 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Types matching the DB schema
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export interface Carrera {
+  id: string
+  nombre: string
+  descripcion?: string | null
+  created_at: string
+  updated_at?: string
+  created_by?: string | null
+  // from view v_carreras_resumen
+  total_modulos?: number
+  total_alumnos?: number
+  total_matriculas?: number
+}
+
 export interface Alumno {
   id: string
   dni: string
   nombres: string
   apellidos: string
-  carrera: string
+  carrera: string            // legacy text field (kept for compatibility)
   // Datos personales
   fecha_nacimiento?: string | null
   nac_distrito?: string | null
@@ -40,19 +54,78 @@ export interface Modulo {
   nombre: string
   fecha_inicio: string
   fecha_fin: string
-  modalidad: 'presencial' | 'virtual'
-  duracion: number
+  modalidad: 'presencial' | 'virtual' | 'semipresencial'
+  duracion: number           // horas
+  carrera_id?: string | null
+  profesor?: string | null
+  local?: string | null
+  aula?: string | null
+  horario?: string | null
+  created_at?: string
+  updated_at?: string
+  created_by?: string | null
+  // relations
+  carreras?: Carrera | null
+  cursos?: Curso[]
+}
+
+export interface Curso {
+  id: string
+  modulo_id: string
+  nombre: string
+  descripcion?: string | null
+  orden: number
+  created_at?: string
+  created_by?: string | null
+  // relations
+  modulos?: Pick<Modulo, 'id' | 'nombre'> | null
 }
 
 export interface Matricula {
   id: string
   alumno_id: string
   modulo_id: string
+  carrera_id?: string | null
+  turno: 'mañana' | 'tarde' | 'noche' | 'sabado_am' | 'sabado_full' | 'domingo_am' | 'domingo_full'
   fecha_registro: string
+  created_at?: string
+  created_by?: string | null
+  // relations
   alumnos?: Alumno
   modulos?: Modulo
+  carreras?: Carrera | null
 }
 
+export interface Asistencia {
+  id: string
+  matricula_id: string
+  modulo_id: string
+  fecha: string
+  estado: 'presente' | 'tardanza' | 'falta' | 'justificado'
+  hora_entrada?: string | null
+  hora_salida?: string | null
+  duracion_min?: number | null
+  observacion?: string | null
+  created_at?: string
+  // relations
+  matriculas?: Matricula
+  modulos?: Pick<Modulo, 'id' | 'nombre'>
+}
+
+export interface NotaCurso {
+  id: string
+  matricula_id: string
+  curso_id: string
+  nota?: number | null          // 0–20 escala vigesimal
+  observacion?: string | null
+  created_at?: string
+  updated_at?: string
+  // relations
+  cursos?: Curso
+  matriculas?: Matricula
+}
+
+/** Legacy: tabla notas (columnas fijas) */
 export interface Nota {
   id: string
   matricula_id: string
@@ -85,4 +158,15 @@ export interface Ingreso {
   hora_ingreso: string
   created_at: string
   alumnos?: Pick<Alumno, 'nombres' | 'apellidos' | 'carrera'>
+}
+
+/** Turnos con su descripción horaria */
+export const TURNOS_LABELS: Record<string, string> = {
+  'mañana':      'Mañana (08:00 – 12:00)',
+  'tarde':       'Tarde (13:00 – 17:00)',
+  'noche':       'Noche (17:00 – 20:30)',
+  'sabado_am':   'Sábado AM (08:00 – 13:00)',
+  'sabado_full': 'Sábado Full (08:00 – 17:00)',
+  'domingo_am':  'Domingo AM (08:00 – 13:00)',
+  'domingo_full':'Domingo Full (08:00 – 17:00)',
 }

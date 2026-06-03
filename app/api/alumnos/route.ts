@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") ?? "1", 10);
     const pageSize = parseInt(searchParams.get("pageSize") ?? "10", 10);
     const search = searchParams.get("search") ?? "";
+    const carrera = searchParams.get("carrera") ?? "";
 
     // 2. Calcular los rangos (From / To) basados en índices cero para Supabase
     const from = (page - 1) * pageSize;
@@ -19,7 +20,11 @@ export async function GET(request: NextRequest) {
       .from("alumnos")
       .select("*", { count: "exact" });
 
-    // 4. Si el usuario escribió algo en el buscador, aplicar el filtro dinámico
+    // 4. Aplicar filtros dinámicos
+    if (carrera) {
+      query = query.eq("carrera", carrera);
+    }
+
     if (search) {
       // .or() evalúa si coincide en DNI, nombres O apellidos usando ILIKE (no distingue mayúsculas)
       query = query.or(

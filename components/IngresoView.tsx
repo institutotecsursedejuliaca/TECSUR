@@ -4,6 +4,7 @@ import { Fingerprint, Search, Download, UserCheck, AlertCircle, CheckCircle, Clo
 import * as XLSX from "xlsx";
 import type { Ingreso, Alumno } from "@/lib/supabase";
 import { carreraBadgeStyle } from "@/lib/carreraColors";
+import AlertDialog from "./AlertDialog";
 
 const card: React.CSSProperties = { background:"rgba(8,16,34,0.85)", border:"1px solid rgba(42,109,181,0.18)", borderRadius:14, backdropFilter:"blur(12px)" };
 const inp: React.CSSProperties = { width:"100%", padding:"9px 13px", background:"rgba(42,109,181,0.08)", border:"1px solid rgba(42,109,181,0.22)", borderRadius:10, color:"#dbeafe", fontSize:13, outline:"none", fontFamily:"inherit", transition:"border-color .2s" };
@@ -19,7 +20,7 @@ export default function IngresoView() {
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState<Alumno | null>(null);
   const [registering, setRegistering] = useState(false);
-  const [msg, setMsg] = useState<{ type:"ok"|"err"|"warn"; text:string } | null>(null);
+  const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" | "info" }>({ open: false, message: "", type: "info" });
   const searchRef = useRef<HTMLInputElement>(null);
 
   // ── Reportes ──
@@ -76,20 +77,20 @@ export default function IngresoView() {
   // ── registrar ──
   async function registrar() {
     if (!selected) return;
-    setRegistering(true); setMsg(null);
+    setRegistering(true); setAlertInfo(p => ({ ...p, open: false }));
     try {
       const res = await fetch("/api/ingresos", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ dni: selected.dni }) });
       const json = await res.json();
       if (res.status === 201) {
-        setMsg({ type:"ok", text:`✓ Ingreso registrado — ${selected.nombres} ${selected.apellidos}` });
+        setAlertInfo({ open: true, type:"success", message:`✓ Ingreso registrado — ${selected.nombres} ${selected.apellidos}` });
         setSelected(null); setQuery(""); setResults([]);
         loadIngresos(page, fDni, fNombre, fInicio, fFin);
       } else if (res.status === 409) {
-        setMsg({ type:"warn", text: json.error });
+        setAlertInfo({ open: true, type:"error", message: json.error }); // Using error for warn logic, or could map warn to info/error
       } else {
-        setMsg({ type:"err", text: json.error ?? "Error al registrar." });
+        setAlertInfo({ open: true, type:"error", message: json.error ?? "Error al registrar." });
       }
-    } catch { setMsg({ type:"err", text:"Error de conexión." }); }
+    } catch { setAlertInfo({ open: true, type:"error", message:"Error de conexión." }); }
     finally { setRegistering(false); searchRef.current?.focus(); }
   }
 
@@ -234,13 +235,12 @@ export default function IngresoView() {
           )}
 
           {/* Mensaje resultado */}
-          {msg && (
-            <div style={{ marginTop:14, padding:"11px 15px", borderRadius:10, display:"flex",alignItems:"center",gap:10, animation:"alertIn .3s both", background:msgColors[msg.type].bg, border:`1px solid ${msgColors[msg.type].border}`, color:msgColors[msg.type].color }}>
-              {msg.type==="ok"?<CheckCircle size={15}/>:<AlertCircle size={15}/>}
-              <span style={{ fontSize:13,flex:1 }}>{msg.text}</span>
-              <button onClick={()=>setMsg(null)} style={{ background:"none",border:"none",cursor:"pointer",color:"inherit",opacity:.6 }}><X size={13}/></button>
-            </div>
-          )}
+          <AlertDialog
+            open={alertInfo.open}
+            onClose={() => setAlertInfo(p => ({ ...p, open: false }))}
+            message={alertInfo.message}
+            type={alertInfo.type}
+          />
         </div>
 
         {/* ── REPORTES ── */}

@@ -1,28 +1,59 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-export async function GET() {
-  const { data, error } = await supabase
+// GET /api/modulos?carrera_id=xxx — lista módulos (filtrables por carrera)
+export async function GET(request: NextRequest) {
+  const { searchParams } = request.nextUrl;
+  const carreraId = searchParams.get("carrera_id");
+
+  let query = supabase
     .from("modulos")
-    .select("*")
+    .select(`
+      *,
+      carreras (id, nombre),
+      cursos (id, nombre, orden)
+    `)
     .order("fecha_inicio", { ascending: false });
 
+  if (carreraId) query = query.eq("carrera_id", carreraId);
+
+  const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(data);
 }
 
+// POST /api/modulos — crear módulo
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, fecha_inicio, fecha_fin, modalidad, duracion } = body;
+  const {
+    nombre, fecha_inicio, fecha_fin, modalidad, duracion,
+    carrera_id, profesor, local, aula, horario
+  } = body;
 
   if (!nombre || !fecha_inicio || !fecha_fin || !modalidad || !duracion) {
-    return Response.json({ error: "Todos los campos son requeridos" }, { status: 400 });
+    return Response.json({ error: "nombre, fecha_inicio, fecha_fin, modalidad y duracion son requeridos" }, { status: 400 });
+  }
+
+  const modalidadesValidas = ["presencial", "virtual", "semipresencial"];
+  if (!modalidadesValidas.includes(modalidad)) {
+    return Response.json({ error: `modalidad debe ser: ${modalidadesValidas.join(", ")}` }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from("modulos")
-    .insert([{ nombre, fecha_inicio, fecha_fin, modalidad, duracion }])
-    .select()
+    .insert([{
+      nombre,
+      fecha_inicio,
+      fecha_fin,
+      modalidad,
+      duracion: parseInt(duracion),
+      carrera_id: carrera_id || null,
+      profesor: profesor || null,
+      local: local || null,
+      aula: aula || null,
+      horario: horario || null,
+    }])
+    .select(`*, carreras(id, nombre)`)
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
