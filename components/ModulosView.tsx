@@ -15,6 +15,7 @@ interface Modulo {
   carrera_id?: string | null; profesor?: string | null;
   local?: string | null; aula?: string | null; horario?: string | null;
   carreras?: Carrera | null; cursos?: Curso[];
+  docente_id?: string | null;
 }
 
 const MODULOS_POR_CARRERA: Record<string, string[]> = {
@@ -43,12 +44,13 @@ const MODALIDAD_TEXT: Record<string, string> = {
 
 const emptyForm = {
   nombre: "", fecha_inicio: "", fecha_fin: "", modalidad: "presencial" as Modulo["modalidad"],
-  duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: ""
+  duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: "", docente_id: ""
 };
 
 export default function ModulosView({ onNavigate }: { onNavigate?: (view: string) => void }) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const [docentes, setDocentes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Modulo | null>(null);
@@ -62,7 +64,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
   const [alumnosMatriculados, setAlumnosMatriculados] = useState<any[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
 
-  useEffect(() => { loadCarreras(); loadModulos(); }, []);
+  useEffect(() => { loadCarreras(); loadModulos(); loadDocentes(); }, []);
 
   async function loadModulos(carreraId?: string) {
     setLoading(true);
@@ -77,6 +79,14 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
     const res = await fetch("/api/carreras");
     const data = await res.json();
     setCarreras(Array.isArray(data) ? data : []);
+  }
+
+  async function loadDocentes() {
+    try {
+      const res = await fetch("/api/docentes");
+      const data = await res.json();
+      setDocentes(Array.isArray(data) ? data : []);
+    } catch (e) {}
   }
 
   function flash(type: "success" | "error", text: string) { setMsg({ open: true, type, text }); }
@@ -94,6 +104,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
         local: form.local || null,
         aula: form.aula || null,
         horario: form.horario || null,
+        docente_id: form.docente_id || null,
     };
     const res = await fetch("/api/modulos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json(); setSubmitting(false);
@@ -116,6 +127,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
         local: form.local || null,
         aula: form.aula || null,
         horario: form.horario || null,
+        docente_id: form.docente_id || null,
     };
     const res = await fetch(`/api/modulos/${editTarget.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json(); setSubmitting(false);
@@ -135,7 +147,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
 
   function openEdit(m: Modulo) {
     setEditTarget(m);
-    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion, carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "" });
+    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion, carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "", docente_id: m.docente_id ?? "" });
     setShowForm(false);
   }
 
@@ -339,8 +351,29 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
               <input className="md-inp" style={inp} placeholder="Ej: Lunes a Viernes 8:00 AM - 12:00 PM" value={form.horario} onChange={e => setForm(p => ({ ...p, horario: e.target.value }))} required />
             </div>
             <div>
-              <label style={lbl}>Profesor</label>
-              <input className="md-inp" style={inp} placeholder="Nombre del docente" value={form.profesor} onChange={e => setForm(p => ({ ...p, profesor: e.target.value }))} />
+              <label style={lbl}>Docente Asignado</label>
+              <div style={{ position: "relative" }}>
+                <select 
+                  className="md-inp" 
+                  style={{ ...inp, paddingRight: 32, cursor: "pointer" }} 
+                  value={form.docente_id} 
+                  onChange={e => {
+                    const docId = e.target.value;
+                    const selectedDoc = docentes.find(d => d.id === docId);
+                    setForm(p => ({ 
+                      ...p, 
+                      docente_id: docId,
+                      profesor: selectedDoc ? `${selectedDoc.nombres} ${selectedDoc.apellidos}` : "" 
+                    }));
+                  }}
+                >
+                  <option value="">Sin docente</option>
+                  {docentes.map(d => (
+                    <option key={d.id} value={d.id}>{d.apellidos}, {d.nombres}</option>
+                  ))}
+                </select>
+                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+              </div>
             </div>
 
             <div>

@@ -17,7 +17,11 @@ const inpStyle: React.CSSProperties = { width: "100%", height: 40, boxSizing: "b
 const btnPrimary: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 18px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#1a4a7a 0%,#2a6db5 55%,#4ab3d8 100%)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" };
 const btnSecondary: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 16px", borderRadius: 10, background: "rgba(42,109,181,0.1)", border: "1px solid rgba(42,109,181,0.22)", color: "rgba(120,160,210,0.85)", fontSize: 13, fontWeight: 500, cursor: "pointer" };
 
-export default function DocentesView() {
+interface DocentesViewProps {
+  docenteId?: string | null;
+}
+
+export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModulo, setSelectedModulo] = useState<Modulo | null>(null);
@@ -41,8 +45,9 @@ export default function DocentesView() {
   const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" }>({ open: false, message: "", type: "success" });
 
   useEffect(() => {
-    fetch("/api/modulos").then(r => r.json()).then(data => { setModulos(Array.isArray(data) ? data : []); setLoading(false); });
-  }, []);
+    const url = docenteId ? `/api/modulos?docente_id=${docenteId}` : "/api/modulos";
+    fetch(url).then(r => r.json()).then(data => { setModulos(Array.isArray(data) ? data : []); setLoading(false); });
+  }, [docenteId]);
 
   const loadMatriculas = async (moduloId: string) => {
     const res = await fetch(`/api/matriculas?modulo_id=${moduloId}`);

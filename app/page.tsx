@@ -16,6 +16,7 @@ import {
   ScanLine,
   Layers,
   Users,
+  Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
@@ -29,6 +30,7 @@ import ModulosView from "@/components/ModulosView";
 import IngresoView from "@/components/IngresoView";
 import CarrerasView from "@/components/CarrerasView";
 import AuditoriaView from "@/components/AuditoriaView";
+import GestionDocentesView from "@/components/GestionDocentesView";
 
 // ── Paleta TECSUR ─────────────────────────────────────────────
 // Azul acero   : #2a6db5
@@ -37,7 +39,7 @@ import AuditoriaView from "@/components/AuditoriaView";
 // Fondo oscuro : #060d18
 // -------------------------------------------------------------
 
-type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso" | "carreras" | "auditoria";
+type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso" | "carreras" | "auditoria" | "gestion-docentes";
 
 interface NavItem {
   id: View;
@@ -62,7 +64,7 @@ const navGroups: NavGroup[] = [
     title: "Gestión Académica",
     items: [
       { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
-      { id: "docentes", label: "Docentes", icon: Users, description: "Notas y asistencias" },
+      { id: "docentes", label: "REGISTRO DE ASISTENCIA Y NOTAS", icon: Users, description: "Notas y asistencias" },
       { id: "carreras", label: "Carreras", icon: GraduationCap, description: "Gestión de carreras" },
       { id: "modulos", label: "Módulos", icon: Layers, description: "Módulos por carrera" },
     ],
@@ -72,6 +74,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
       { id: "consulta", label: "Consulta Admin", icon: Search, description: "Reportes DNI" },
+      { id: "gestion-docentes", label: "Cuentas Docentes", icon: Users, description: "Crear y gestionar docentes" },
       { id: "auditoria", label: "Auditoría", icon: Shield, description: "Historial de cambios" },
     ],
   },
@@ -86,10 +89,40 @@ export default function HomePage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hovered, setHovered] = useState<View | null>(null);
 
+  const [userRole, setUserRole] = useState<"admin" | "docente" | null>(null);
+  const [docenteId, setDocenteId] = useState<string | null>(null);
+  const [loadingRole, setLoadingRole] = useState(true);
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace("/login"); return; }
-      setUserEmail(data.session.user?.email ?? null);
+      const email = (data.session.user?.email ?? "").toLowerCase().trim();
+      setUserEmail(email);
+
+      const adminEmails = ["admin@tecsur.edu.pe", "hhuarayachipana@gmail.com"];
+      if (adminEmails.includes(email)) {
+        setUserRole("admin");
+        setActiveView("ingreso");
+        setLoadingRole(false);
+      } else {
+        // Consultar si el ID de usuario existe en la tabla de docentes
+        const { data: docData, error } = await supabase
+          .from("docentes")
+          .select("id")
+          .eq("id", data.session.user.id)
+          .single();
+
+        if (error || !docData) {
+          toast.error("Acceso denegado. No se encontró perfil de docente para esta cuenta.");
+          await supabase.auth.signOut();
+          setTimeout(() => { window.location.href = "/login"; }, 800);
+        } else {
+          setUserRole("docente");
+          setDocenteId(data.session.user.id);
+          setActiveView("docentes");
+          setLoadingRole(false);
+        }
+      }
     });
   }, [router]);
 
@@ -99,8 +132,28 @@ export default function HomePage() {
     setTimeout(() => { window.location.href = "/login"; }, 800);
   }
 
-  const currentItem = navItems.find((n) => n.id === activeView) || navItems[0];
+  // Filtrar grupos de navegación basados en el rol
+  const filteredNavGroups = navGroups.map(group => {
+    const items = group.items.filter(item => {
+      if (userRole === "docente") {
+        return item.id === "docentes";
+      }
+      return true;
+    });
+    return { ...group, items };
+  }).filter(group => group.items.length > 0);
+
+  const filteredNavItems = filteredNavGroups.flatMap(g => g.items);
+  const currentItem = filteredNavItems.find((n) => n.id === activeView) || filteredNavItems[0] || navItems[0];
   const Icon = currentItem.icon;
+
+  if (loadingRole) {
+    return (
+      <div style={{ display: "flex", height: "100vh", alignItems: "center", justifyContent: "center", background: "#060d18", color: "#4ab3d8", fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>
+        <Loader2 className="animate-spin" style={{ marginRight: 8 }} size={18} /> Cargando sistema...
+      </div>
+    );
+  }
 
   // Initials from email
   const initials = userEmail
@@ -304,14 +357,14 @@ export default function HomePage() {
                 color: "#dbeafe",
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               }}>
-                Administrador
+                {userRole === "admin" ? "Administrador" : "Docente"}
               </div>
               <div style={{
                 fontSize: 11,
                 color: "rgba(74,179,216,0.7)",
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
               }}>
-                {userEmail ?? "Acceso Total"}
+                {userEmail ?? ""}
               </div>
             </div>
             {/* online dot */}
@@ -332,7 +385,7 @@ export default function HomePage() {
           style={{ flex: 1, padding: "4px 12px", overflowY: "auto" }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {navGroups.map((group, groupIdx) => (
+            {filteredNavGroups.map((group, groupIdx) => (
               <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <div style={{
                   padding: "4px 8px",
@@ -350,7 +403,7 @@ export default function HomePage() {
                   </span>
                   <div style={{ flex: 1, height: 1, background: "rgba(42,109,181,0.15)" }} />
                 </div>
-                
+
                 {group.items.map((item, i) => {
                   const NavIcon = item.icon;
                   const isActive = activeView === item.id;
@@ -564,14 +617,15 @@ export default function HomePage() {
           }}
         >
           <div className="ts-view-fade" key={activeView}>
-            {activeView === "consulta"  && <ConsultaAdminView />}
-            {activeView === "docentes"  && <DocentesView />}
+            {activeView === "consulta" && <ConsultaAdminView />}
+            {activeView === "docentes" && <DocentesView docenteId={docenteId} />}
             {activeView === "pensiones" && <PensionesView />}
-            {activeView === "alumnos"   && <AlumnosView />}
-            {activeView === "modulos"   && <ModulosView onNavigate={(view) => setActiveView(view as any)} />}
-            {activeView === "ingreso"   && <IngresoView />}
-            {activeView === "carreras"  && <CarrerasView />}
+            {activeView === "alumnos" && <AlumnosView />}
+            {activeView === "modulos" && <ModulosView onNavigate={(view) => setActiveView(view as any)} />}
+            {activeView === "ingreso" && <IngresoView />}
+            {activeView === "carreras" && <CarrerasView />}
             {activeView === "auditoria" && <AuditoriaView />}
+            {activeView === "gestion-docentes" && <GestionDocentesView />}
           </div>
         </main>
       </div>

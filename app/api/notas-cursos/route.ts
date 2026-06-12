@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
         alumnos (id, dni, nombres, apellidos)
       )
     `)
-    .order("cursos(orden)", { ascending: true });
+    .order("orden", { referencedTable: "cursos", ascending: true });
 
   if (matriculaId) query = query.eq("matricula_id", matriculaId);
   if (cursoId)     query = query.eq("curso_id", cursoId);

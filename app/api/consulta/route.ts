@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     });
 
     const totalAsistencias = asistenciasDelModulo.length;
-    const totalPresentes = asistenciasDelModulo.filter(a => a.presente).length;
+    const totalPresentes = asistenciasDelModulo.filter(a => a.estado === "presente" || a.estado === "tardanza" || a.estado === "justificado").length;
     const asistencia_total = totalAsistencias > 0 ? Math.round((totalPresentes / totalAsistencias) * 100) : null;
 
     return {

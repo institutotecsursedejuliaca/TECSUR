@@ -29,7 +29,7 @@ export default async function ReporteModuloPage({
     .from("matriculas")
     .select("id, turno, alumnos(dni, nombres, apellidos, carrera)")
     .eq("modulo_id", moduloId)
-    .order("alumnos(apellidos)", { ascending: true });
+    .order("apellidos", { referencedTable: "alumnos", ascending: true });
 
   const listaMatriculas = matriculas || [];
   const carreraStr = listaMatriculas.length > 0 ? (listaMatriculas[0].alumnos as any).carrera : "NO ASIGNADA";
