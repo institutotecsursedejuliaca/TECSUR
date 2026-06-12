@@ -87,7 +87,7 @@ export default function CarrerasView() {
     const res = await fetch("/api/carreras", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, created_by: userEmail }),
+      body: JSON.stringify(form),
     });
     const data = await res.json();
     setSubmitting(false);

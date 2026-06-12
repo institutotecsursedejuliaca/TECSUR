@@ -15,7 +15,7 @@ export async function GET() {
 // POST /api/carreras — crea una carrera nueva
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { nombre, descripcion, created_by } = body;
+  const { nombre, descripcion } = body;
 
   if (!nombre?.trim()) {
     return Response.json({ error: "El nombre de la carrera es requerido" }, { status: 400 });
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("carreras")
-    .insert([{ nombre: nombre.trim(), descripcion: descripcion || null, created_by: created_by || null }])
+    .insert([{ nombre: nombre.trim(), descripcion: descripcion || null }])
     .select()
     .single();
 
