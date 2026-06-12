@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, nombres, apellidos } = body;
+    const { email, password, nombres, apellidos, dni } = body;
 
     if (!email || !password || !nombres || !apellidos) {
       return Response.json(
@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
           id: userId,
           nombres: nombres.trim(),
           apellidos: apellidos.trim(),
-          email: email.trim()
+          email: email.trim(),
+          dni: dni ? dni.trim() : null
         }
       ])
       .select()
@@ -129,4 +130,63 @@ export async function DELETE(request: NextRequest) {
   }
 
   return Response.json({ success: true, message: "Docente eliminado correctamente" });
+}
+
+// PUT /api/docentes — Actualizar o restablecer contraseña
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { id, action } = body;
+
+    if (!id) {
+      return Response.json({ error: "El ID del docente es requerido" }, { status: 400 });
+    }
+
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      return Response.json(
+        { error: "La variable de entorno SUPABASE_SERVICE_ROLE_KEY no está configurada." },
+        { status: 500 }
+      );
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      serviceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
+    if (action === "reset-password") {
+      // Obtener el DNI del docente para usarlo como contraseña
+      const { data: doc, error: docError } = await supabaseAdmin
+        .from("docentes")
+        .select("dni")
+        .eq("id", id)
+        .single();
+
+      if (docError || !doc?.dni) {
+        return Response.json({ error: "No se encontró el DNI del docente para restablecer la contraseña." }, { status: 400 });
+      }
+
+      // Actualizar la contraseña en Supabase Auth usando el DNI
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        password: doc.dni
+      });
+
+      if (authError) {
+        return Response.json({ error: authError.message }, { status: 400 });
+      }
+
+      return Response.json({ success: true, message: "Contraseña restablecida correctamente al DNI del docente." });
+    }
+
+    return Response.json({ error: "Acción no soportada" }, { status: 400 });
+  } catch (e: any) {
+    return Response.json({ error: e.message || "Error interno del servidor" }, { status: 500 });
+  }
 }

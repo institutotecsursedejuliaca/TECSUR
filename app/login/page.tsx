@@ -96,7 +96,11 @@ export default function LoginPage() {
               bottom: -70, right: -50,
               background: "radial-gradient(circle, rgba(74,179,216,0.22) 0%, transparent 70%)",
               filter: "blur(72px)",
-              animation: "orbFloat 11s ease-in-out infinite alternate",
+              animationName: "orbFloat",
+              animationDuration: "11s",
+              animationTimingFunction: "ease-in-out",
+              animationIterationCount: "infinite",
+              animationDirection: "alternate",
               animationDelay: "-3s",
             }}
           />
@@ -109,7 +113,11 @@ export default function LoginPage() {
               transform: "translate(-50%,-50%)",
               background: "radial-gradient(circle, rgba(26,74,122,0.18) 0%, transparent 70%)",
               filter: "blur(60px)",
-              animation: "orbFloat 7s ease-in-out infinite alternate",
+              animationName: "orbFloat",
+              animationDuration: "7s",
+              animationTimingFunction: "ease-in-out",
+              animationIterationCount: "infinite",
+              animationDirection: "alternate",
               animationDelay: "-5s",
             }}
           />

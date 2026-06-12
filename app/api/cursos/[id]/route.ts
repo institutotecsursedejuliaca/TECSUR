@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, descripcion, orden } = body;
+  const { nombre, descripcion, orden, creditos } = body;
 
   if (!nombre?.trim()) {
     return Response.json({ error: "El nombre es requerido" }, { status: 400 });
@@ -25,7 +25,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
   const { data, error } = await supabase
     .from("cursos")
-    .update({ nombre: nombre.trim(), descripcion: descripcion || null, orden: orden ?? 1 })
+    .update({ 
+      nombre: nombre.trim(), 
+      descripcion: descripcion || null, 
+      orden: orden ?? 1,
+      creditos: creditos !== undefined ? Number(creditos) : undefined
+    })
     .eq("id", id)
     .select()
     .single();

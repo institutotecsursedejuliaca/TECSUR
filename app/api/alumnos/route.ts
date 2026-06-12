@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      // .or() evalúa si coincide en DNI, nombres O apellidos usando ILIKE (no distingue mayúsculas)
+      // .or() evalúa si coincide en código, DNI, nombres O apellidos usando ILIKE (no distingue mayúsculas)
       query = query.or(
-        `dni.ilike.%${search}%,nombres.ilike.%${search}%,apellidos.ilike.%${search}%`
+        `codigo.ilike.%${search}%,dni.ilike.%${search}%,nombres.ilike.%${search}%,apellidos.ilike.%${search}%`
       );
     }
 
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { dni, nombres, apellidos, carrera } = body;
+  const { dni, nombres, apellidos, carrera, codigo } = body;
 
   if (!dni || !nombres || !apellidos || !carrera) {
     return Response.json({ error: "DNI, nombres, apellidos y carrera son requeridos" }, { status: 400 });
@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
 
   const fields = {
     dni, nombres, apellidos, carrera,
+    codigo:               codigo                    || null,
     fecha_nacimiento:     body.fecha_nacimiento     || null,
     nac_distrito:         body.nac_distrito         || null,
     nac_provincia:        body.nac_provincia        || null,

@@ -33,6 +33,7 @@ import ReporteMatriculaBtn from "./ReporteMatriculaBtn";
 interface Alumno {
   id: string;
   dni: string;
+  codigo?: string | null;
   nombres: string;
   apellidos: string;
   carrera: string;
@@ -166,6 +167,7 @@ export default function AlumnosView() {
   // ── Datos ──
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const [carrerasList, setCarrerasList] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -186,7 +188,7 @@ export default function AlumnosView() {
 
   // ── Formularios ──
   const emptyAlumno = {
-    dni: "", nombres: "", apellidos: "", carrera: "",
+    dni: "", codigo: "", nombres: "", apellidos: "", carrera: "",
     fecha_nacimiento: "", nac_distrito: "", nac_provincia: "", nac_departamento: "",
     direccion: "", dir_distrito: "", dir_referencia: "",
     telefono: "", celular: "", correo: "", facebook: "",
@@ -247,6 +249,19 @@ export default function AlumnosView() {
     setModulos(Array.isArray(data) ? data : []);
   }
 
+  async function loadCarreras() {
+    try {
+      const res = await fetch("/api/carreras");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const dbCarreraNames = data.map((c: any) => c.nombre).filter(Boolean);
+        setCarrerasList(dbCarreraNames);
+      }
+    } catch (err) {
+      console.error("Error loading careers:", err);
+    }
+  }
+
   async function loadMatriculasAlumno(alumnoId: string) {
     setLoadingMatriculas(true);
     try {
@@ -262,6 +277,7 @@ export default function AlumnosView() {
 
   useEffect(() => {
     loadModulos();
+    loadCarreras();
   }, []);
 
   useEffect(() => {
@@ -491,7 +507,7 @@ export default function AlumnosView() {
                 }}
               >
                 <option value="">Todas las Carreras</option>
-                {CARRERAS.map((c) => (
+                {carrerasList.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -501,7 +517,10 @@ export default function AlumnosView() {
             <button
               className="ts-btn-primary"
               style={{ ...primaryBtn, height: 42 }}
-              onClick={() => setModalAlumno(true)}
+              onClick={() => {
+                setAlumnoForm({ ...emptyAlumno, codigo: `TS-${Math.floor(100000 + Math.random() * 900000)}` });
+                setModalAlumno(true);
+              }}
             >
               <Plus size={14} />
               Nuevo Alumno
@@ -557,7 +576,7 @@ export default function AlumnosView() {
               >
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
-                    {["#", "DNI", "Apellidos y Nombres", "Carrera", "Celular", ""].map((h) => (
+                    {["#", "Código", "DNI", "Apellidos y Nombres", "Carrera", "Celular", ""].map((h) => (
                       <th key={h} style={{
                         padding: "10px 14px", textAlign: "left",
                         fontSize: 10, fontWeight: 600,
@@ -572,6 +591,11 @@ export default function AlumnosView() {
                     <tr key={a.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)", transition: "background .15s" }}>
                       <td style={{ padding: "11px 14px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>
                         {(page - 1) * PAGE_SIZE + idx + 1}
+                      </td>
+                      <td style={{ padding: "11px 14px" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(74,179,216,0.12)", border: "1px solid rgba(74,179,216,0.2)", color: "#7cc8e8" }}>
+                          {a.codigo || "—"}
+                        </span>
                       </td>
                       <td style={{ padding: "11px 14px" }}>
                         <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
@@ -704,8 +728,9 @@ export default function AlumnosView() {
 
           {/* Básico */}
           {formTab === "basico" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><label style={fieldLabel}>Código de Alumno *</label><input className="ts-input" style={inputStyle} placeholder="Ej: AL-1002" value={alumnoForm.codigo} onChange={e => setAlumnoForm(p => ({ ...p, codigo: e.target.value }))} required /></div>
             <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} placeholder="Ej: 12345678" value={alumnoForm.dni} onChange={e => setAlumnoForm(p => ({ ...p, dni: e.target.value }))} maxLength={12} required /></div>
-            <div><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={alumnoForm.carrera} onChange={e => setAlumnoForm(p => ({ ...p, carrera: e.target.value }))} required><option value="">— Seleccionar —</option>{CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={alumnoForm.carrera} onChange={e => setAlumnoForm(p => ({ ...p, carrera: e.target.value }))} required><option value="">— Seleccionar —</option>{carrerasList.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
             <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} placeholder="Ej: Juan Carlos" value={alumnoForm.nombres} onChange={e => setAlumnoForm(p => ({ ...p, nombres: e.target.value }))} required /></div>
             <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} placeholder="Ej: García Ríos" value={alumnoForm.apellidos} onChange={e => setAlumnoForm(p => ({ ...p, apellidos: e.target.value }))} required /></div>
           </div>}
@@ -764,8 +789,9 @@ export default function AlumnosView() {
             </div>
 
             {formTab === "basico" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div><label style={fieldLabel}>Código de Alumno *</label><input className="ts-input" style={inputStyle} value={editForm.codigo ?? ""} onChange={e => setEditForm(p => p ? { ...p, codigo: e.target.value } : p)} required /></div>
               <div><label style={fieldLabel}>DNI *</label><input className="ts-input" style={inputStyle} value={editForm.dni} onChange={e => setEditForm(p => p ? { ...p, dni: e.target.value } : p)} maxLength={12} required /></div>
-              <div><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={editForm.carrera} onChange={e => setEditForm(p => p ? { ...p, carrera: e.target.value } : p)} required><option value="">— Seleccionar —</option>{CARRERAS.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Carrera *</label><div style={{ position: "relative" }}><select className="ts-input" style={selectStyle} value={editForm.carrera} onChange={e => setEditForm(p => p ? { ...p, carrera: e.target.value } : p)} required><option value="">— Seleccionar —</option>{carrerasList.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} /></div></div>
               <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Nombres *</label><input className="ts-input" style={inputStyle} value={editForm.nombres} onChange={e => setEditForm(p => p ? { ...p, nombres: e.target.value } : p)} required /></div>
               <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Apellidos *</label><input className="ts-input" style={inputStyle} value={editForm.apellidos} onChange={e => setEditForm(p => p ? { ...p, apellidos: e.target.value } : p)} required /></div>
             </div>}

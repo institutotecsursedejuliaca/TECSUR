@@ -120,7 +120,7 @@ export default function ConsultaAdminView() {
       {/* ── BÚSQUEDA ── */}
       <div className="glass-card" style={{ padding: "32px", border: "1px solid rgba(42,109,181,0.2)" }}>
         <h2 className="text-2xl font-bold text-white mb-2">Consulta de Alumnos</h2>
-        <p className="text-sm text-blue-300 opacity-80 mb-6">Busque un alumno por DNI para ver todos sus registros académicos y financieros.</p>
+        <p className="text-sm text-blue-300 opacity-80 mb-6">Busque un alumno por Código de Alumno o DNI para ver todos sus registros académicos y financieros.</p>
         <form onSubmit={handleSearch} style={{ display: "flex", gap: 16, maxWidth: 600 }}>
           <div className="relative flex-1" style={{ position: "relative" }}>
             <Search size={16} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,0.6)" }} />
@@ -128,7 +128,7 @@ export default function ConsultaAdminView() {
               id="consulta-dni-input"
               className="w-full text-white rounded-xl outline-none"
               style={{ height: 48, paddingLeft: 44, paddingRight: 16, background: "rgba(10,22,44,0.7)", border: "1px solid rgba(42,109,181,0.3)" }}
-              placeholder="Ingrese el DNI del alumno..."
+              placeholder="Ingrese el Código o DNI del alumno..."
               value={dni}
               onChange={(e) => setDni(e.target.value)}
               autoComplete="off"
@@ -164,6 +164,11 @@ export default function ConsultaAdminView() {
                   {data.alumno.apellidos}, <span className="font-medium text-blue-200">{data.alumno.nombres}</span>
                 </h2>
                 <div className="flex flex-wrap gap-4 mt-3">
+                  {(data.alumno as any).codigo && (
+                    <span className="flex items-center gap-1.5 rounded-full text-xs font-bold bg-blue-900 bg-opacity-30 text-blue-300 border border-blue-800" style={{ padding: "4px 12px" }}>
+                      <User size={12} /> Código: {(data.alumno as any).codigo}
+                    </span>
+                  )}
                   <span className="flex items-center gap-1.5 rounded-full text-xs font-bold bg-blue-900 bg-opacity-30 text-blue-300 border border-blue-800" style={{ padding: "4px 12px" }}>
                     <User size={12} /> DNI: {data.alumno.dni}
                   </span>

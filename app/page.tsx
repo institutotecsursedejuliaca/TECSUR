@@ -17,8 +17,11 @@ import {
   Layers,
   Users,
   Loader2,
+  Key,
+  ShieldUser
 } from "lucide-react";
 import Image from "next/image";
+import Modal from "@/components/Modal";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "sonner";
@@ -55,27 +58,26 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    title: "Control y Asistencia",
+    title: "CONTROL DE INGRESO DE ESTUDIANTES",
     items: [
-      { id: "ingreso", label: "Control de Ingreso", icon: ScanLine, description: "Asistencia por DNI" },
+      { id: "ingreso", label: "CONTROL DE INGRESO", icon: ScanLine, description: "Asistencia por DNI" },
     ],
   },
   {
-    title: "Gestión Académica",
+    title: "CONTROL Y EVALUACIÓN ACADÉMICA",
     items: [
-      { id: "alumnos", label: "Alumnos", icon: BookOpen, description: "Registro y matrícula" },
-      { id: "docentes", label: "REGISTRO DE ASISTENCIA Y NOTAS", icon: Users, description: "Notas y asistencias" },
-      { id: "carreras", label: "Carreras", icon: GraduationCap, description: "Gestión de carreras" },
-      { id: "modulos", label: "Módulos", icon: Layers, description: "Módulos por carrera" },
+      { id: "carreras", label: "PLAN DE ESTUDIOS", icon: GraduationCap, description: "Gestión de carreras y modulos" },
+      { id: "gestion-docentes", label: "DOCENTES", icon: ShieldUser, description: "Crear y gestionar cuentas de los docentes" },
+      { id: "alumnos", label: "ALUMNOS", icon: Users, description: "Registro y matrícula" },
+      { id: "docentes", label: "REGISTRO DE ASISTENCIA Y NOTAS", icon: BookOpen, description: "Notas y asistencias" },
     ],
   },
   {
     title: "Administración",
     items: [
-      { id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
-      { id: "consulta", label: "Consulta Admin", icon: Search, description: "Reportes DNI" },
-      { id: "gestion-docentes", label: "Cuentas Docentes", icon: Users, description: "Crear y gestionar docentes" },
-      { id: "auditoria", label: "Auditoría", icon: Shield, description: "Historial de cambios" },
+      //{ id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
+      //{ id: "consulta", label: "Consulta Admin", icon: Search, description: "Reportes DNI" },
+      { id: "auditoria", label: "AUDITORÍA", icon: Shield, description: "Historial de cambios" },
     ],
   },
 ];
@@ -92,6 +94,37 @@ export default function HomePage() {
   const [userRole, setUserRole] = useState<"admin" | "docente" | null>(null);
   const [docenteId, setDocenteId] = useState<string | null>(null);
   const [loadingRole, setLoadingRole] = useState(true);
+
+  // Cambio de contraseña
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Contraseña actualizada exitosamente");
+      setShowPasswordModal(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Error al actualizar la contraseña");
+    } finally {
+      setUpdatingPassword(false);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -417,8 +450,11 @@ export default function HomePage() {
                       onMouseEnter={() => setHovered(item.id)}
                       onMouseLeave={() => setHovered(null)}
                       style={{
+                        animationName: "sidebarIn",
+                        animationDuration: ".4s",
+                        animationTimingFunction: "cubic-bezier(.16,1,.3,1)",
+                        animationFillMode: "both",
                         animationDelay: `${(groupIdx * 3 + i) * 0.05}s`,
-                        animation: "sidebarIn .4s cubic-bezier(.16,1,.3,1) both",
                       }}
                     >
                       {/* shimmer en item activo */}
@@ -495,6 +531,37 @@ export default function HomePage() {
           borderTop: "1px solid rgba(42,109,181,0.12)",
           flexShrink: 0,
         }}>
+          <button
+            style={{
+              display: "flex", alignItems: "center", gap: 10,
+              width: "100%", padding: "10px 12px",
+              borderRadius: 10, border: "1px solid transparent",
+              background: "transparent", cursor: "pointer", textAlign: "left",
+              transition: "background .2s, border-color .2s",
+              color: "rgba(120,160,210,0.85)", fontSize: 13, fontFamily: "inherit",
+              marginBottom: 6
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(42,109,181,0.08)";
+              e.currentTarget.style.borderColor = "rgba(42,109,181,0.15)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.borderColor = "transparent";
+            }}
+            onClick={() => setShowPasswordModal(true)}
+          >
+            <div style={{
+              width: 30, height: 30, borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "rgba(42,109,181,0.08)",
+              border: "1px solid rgba(42,109,181,0.15)",
+            }}>
+              <Key size={14} style={{ color: "#4ab3d8" }} />
+            </div>
+            <span style={{ fontWeight: 500 }}>Cambiar Contraseña</span>
+          </button>
+
           <button className="ts-logout" onClick={handleLogout}>
             <div style={{
               width: 30, height: 30, borderRadius: 8,
@@ -629,6 +696,44 @@ export default function HomePage() {
           </div>
         </main>
       </div>
+
+      {/* Modal: Cambiar Contraseña */}
+      <Modal open={showPasswordModal} onClose={() => setShowPasswordModal(false)} title="Cambiar Contraseña" maxWidth="400px">
+        <form onSubmit={handleChangePassword} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.75)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Nueva Contraseña *</label>
+            <input
+              type="password"
+              style={{ width: "100%", height: 44, boxSizing: "border-box", background: "rgba(10,22,44,0.7)", border: "1px solid rgba(42,109,181,0.22)", borderRadius: 10, padding: "0 14px", color: "#dbeafe", fontSize: 13, outline: "none" }}
+              placeholder="Mínimo 6 caracteres"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.75)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Confirmar Nueva Contraseña *</label>
+            <input
+              type="password"
+              style={{ width: "100%", height: 44, boxSizing: "border-box", background: "rgba(10,22,44,0.7)", border: "1px solid rgba(42,109,181,0.22)", borderRadius: 10, padding: "0 14px", color: "#dbeafe", fontSize: 13, outline: "none" }}
+              placeholder="Repita la nueva contraseña"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 10 }}>
+            <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 10, background: "rgba(42,109,181,0.1)", border: "1px solid rgba(42,109,181,0.22)", color: "rgba(120,160,210,0.85)", fontSize: 13, fontWeight: 500, cursor: "pointer" }} onClick={() => setShowPasswordModal(false)}>
+              Cancelar
+            </button>
+            <button type="submit" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #1a4a7a 0%, #2a6db5 55%, #4ab3d8 100%)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 15px rgba(42,109,181,0.25)" }} disabled={updatingPassword}>
+              {updatingPassword ? "Actualizando..." : "Actualizar Contraseña"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
     </div>
   );
 }

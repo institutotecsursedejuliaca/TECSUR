@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 // POST /api/cursos
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { modulo_id, nombre, descripcion, orden } = body;
+  const { modulo_id, nombre, descripcion, orden, creditos } = body;
 
   if (!modulo_id || !nombre?.trim()) {
     return Response.json({ error: "modulo_id y nombre son requeridos" }, { status: 400 });
@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       nombre: nombre.trim(),
       descripcion: descripcion || null,
       orden: orden ?? 1,
+      creditos: creditos ? Number(creditos) : 1,
     }])
     .select()
     .single();
@@ -45,3 +46,4 @@ export async function POST(request: NextRequest) {
   }
   return Response.json(data, { status: 201 });
 }
+

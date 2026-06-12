@@ -38,7 +38,7 @@ export default async function ReporteModuloPage({
   // 3. Obtener cursos del módulo
   const { data: cursos } = await supabase
     .from("cursos")
-    .select("id, nombre")
+    .select("id, nombre, creditos")
     .eq("modulo_id", moduloId)
     .order("orden", { ascending: true });
 
@@ -198,7 +198,9 @@ export default async function ReporteModuloPage({
               <th rowSpan={2} className="bg-blue text-center">N°</th>
               <th rowSpan={2} className="bg-blue text-center">APELLIDOS Y NOMBRES</th>
               {listaCursos.map((c, i) => (
-                <th key={c.id} rowSpan={2} className="bg-gray vertical-text text-center">{c.nombre.toUpperCase()}</th>
+                <th key={c.id} rowSpan={2} className="bg-gray vertical-text text-center">
+                  {c.nombre.toUpperCase()} {c.creditos ? `(${c.creditos} CR)` : "(1 CR)"}
+                </th>
               ))}
               <th rowSpan={2} className="bg-blue vertical-text text-center">Prom.</th>
               <th rowSpan={2} className="bg-gray text-center">N°</th>

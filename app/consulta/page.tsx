@@ -47,22 +47,22 @@ interface AlumnoData {
 }
 
 export default function PublicConsultaPage() {
-  const [dni, setDni] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AlumnoData | null>(null);
   const [expandedModulo, setExpandedModulo] = useState<string | null>(null);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!dni.trim()) {
-      toast.error("Por favor ingrese su DNI");
+    if (!codigo.trim()) {
+      toast.error("Por favor ingrese su código de alumno");
       return;
     }
     setLoading(true);
     setData(null);
 
     try {
-      const res = await fetch(`/api/consulta?dni=${encodeURIComponent(dni.trim())}`);
+      const res = await fetch(`/api/consulta?codigo=${encodeURIComponent(codigo.trim())}`);
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.error || "No se encontró el alumno o error al consultar");
@@ -185,7 +185,7 @@ export default function PublicConsultaPage() {
               lineHeight: 1.75,
             }}
           >
-            Ingresa tu número de DNI para ver tus notas por módulo, asistencia y
+            Ingresa tu Código de Alumno para ver tus notas por módulo, asistencia y
             descargar tus constancias oficiales.
           </p>
         </div>
@@ -215,10 +215,9 @@ export default function PublicConsultaPage() {
                   borderRadius: 10, padding: "0 14px 0 40px",
                   fontSize: 14, color: "#fff", fontFamily: "inherit", outline: "none",
                 }}
-                maxLength={12}
-                placeholder="Número de DNI..."
-                value={dni}
-                onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+                placeholder="Código de Alumno..."
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
               />
             </div>
             <button
@@ -284,6 +283,19 @@ export default function PublicConsultaPage() {
                   {data.alumno.apellidos}, {data.alumno.nombres}
                 </p>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 7 }}>
+                  {(data.alumno as any).codigo && (
+                    <span
+                      style={{
+                        fontSize: 10, fontWeight: 600, letterSpacing: "0.04em",
+                        padding: "3px 10px", borderRadius: 100,
+                        background: "rgba(74,179,216,0.1)", color: "#4ab3d8",
+                        border: "1px solid rgba(74,179,216,0.2)",
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                      }}
+                    >
+                      <User size={9} /> Código {(data.alumno as any).codigo}
+                    </span>
+                  )}
                   <span
                     style={{
                       fontSize: 10, fontWeight: 600, letterSpacing: "0.04em",

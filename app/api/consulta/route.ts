@@ -2,17 +2,19 @@ import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
+  const codigo = request.nextUrl.searchParams.get("codigo");
   const dni = request.nextUrl.searchParams.get("dni");
 
-  if (!dni) {
-    return Response.json({ error: "DNI es requerido" }, { status: 400 });
+  if (!codigo && !dni) {
+    return Response.json({ error: "Código o DNI es requerido" }, { status: 400 });
   }
 
-  // Get alumno by DNI
+  // Get alumno by matching either codigo or dni
+  const val = (codigo || dni || "").trim();
   const { data: alumno, error: alumnoError } = await supabase
     .from("alumnos")
     .select("*")
-    .eq("dni", dni)
+    .or(`codigo.eq."${val}",dni.eq."${val}"`)
     .single();
 
   if (alumnoError || !alumno) {

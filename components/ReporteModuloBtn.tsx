@@ -5,9 +5,10 @@ import { FileSpreadsheet } from "lucide-react";
 interface ReporteModuloBtnProps {
   moduloId: string;
   text?: string;
+  style?: React.CSSProperties;
 }
 
-export default function ReporteModuloBtn({ moduloId, text }: ReporteModuloBtnProps) {
+export default function ReporteModuloBtn({ moduloId, text, style }: ReporteModuloBtnProps) {
   const handlePrint = (e: React.MouseEvent) => {
     e.stopPropagation();
     window.open(`/reportes/modulo?modulo_id=${moduloId}`, "_blank");
@@ -32,7 +33,8 @@ export default function ReporteModuloBtn({ moduloId, text }: ReporteModuloBtnPro
         cursor: "pointer",
         transition: "all 0.2s",
         fontSize: 12,
-        fontWeight: 600
+        fontWeight: 600,
+        ...style
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "rgba(16,185,129,0.2)";

@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, Calendar, Save, Plus, CheckSquare, Square, Layers, User } from "lucide-react";
+import { ChevronLeft, Calendar, Save, Plus, CheckSquare, Square, Layers, User, Edit } from "lucide-react";
 import AlertDialog from "./AlertDialog";
 import Modal from "./Modal";
 import ReporteModuloBtn from "./ReporteModuloBtn";
 
 interface Modulo { id: string; nombre: string; fecha_inicio: string; fecha_fin: string; modalidad: string; duracion: number; profesor?: string; local?: string; aula?: string; }
 interface Matricula { id: string; alumnos: { id: string; dni: string; nombres: string; apellidos: string; carrera: string } }
-interface Curso { id: string; nombre: string; orden: number }
+interface Curso { id: string; nombre: string; orden: number; creditos?: number; }
 interface Asistencia { id: string; matricula_id: string; estado: string }
 interface NotaCurso { id: string; matricula_id: string; nota: number | null }
 
@@ -40,6 +40,11 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [notasMap, setNotasMap] = useState<Record<string, string>>({}); // matricula_id -> nota
   const [showNewCurso, setShowNewCurso] = useState(false);
   const [newCursoNombre, setNewCursoNombre] = useState("");
+  const [newCursoCreditos, setNewCursoCreditos] = useState(1);
+  const [showEditCurso, setShowEditCurso] = useState(false);
+  const [editCursoId, setEditCursoId] = useState("");
+  const [editCursoNombre, setEditCursoNombre] = useState("");
+  const [editCursoCreditos, setEditCursoCreditos] = useState(1);
 
   const [saving, setSaving] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" }>({ open: false, message: "", type: "success" });
@@ -149,15 +154,43 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
     try {
       const res = await fetch("/api/cursos", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ modulo_id: selectedModulo.id, nombre: newCursoNombre, orden: cursos.length + 1 })
+        body: JSON.stringify({ 
+          modulo_id: selectedModulo.id, 
+          nombre: newCursoNombre, 
+          orden: cursos.length + 1,
+          creditos: newCursoCreditos
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error creando curso");
       flash("success", "Curso creado");
       setShowNewCurso(false);
       setNewCursoNombre("");
+      setNewCursoCreditos(1);
       await loadCursos(selectedModulo.id);
       setSelectedCursoId(data.id);
+    } catch (err: any) {
+      flash("error", err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Editar Curso
+  const updateCurso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCursoId || !editCursoNombre.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/cursos/${editCursoId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre: editCursoNombre, creditos: editCursoCreditos })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error editando curso");
+      flash("success", "Curso actualizado");
+      setShowEditCurso(false);
+      await loadCursos(selectedModulo!.id);
     } catch (err: any) {
       flash("error", err.message);
     } finally {
@@ -200,8 +233,10 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           <div style={{ textAlign: "center", padding: 40, color: "#4ab3d8" }}>Cargando módulos...</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-            {modulos.map(m => {
-              const isFinished = new Date().toISOString().split("T")[0] > m.fecha_fin;
+            {modulos
+              .filter(m => !docenteId || new Date().toISOString().split("T")[0] <= m.fecha_fin)
+              .map(m => {
+                const isFinished = new Date().toISOString().split("T")[0] > m.fecha_fin;
               return (
                 <div key={m.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column" }} 
                      onClick={() => setSelectedModulo(m)}
@@ -353,12 +388,35 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 <span style={{ fontSize: 12, color: "rgba(248,113,113,0.8)" }}>No hay cursos creados.</span>
               ) : (
                 <select style={{ ...inpStyle, width: 220, height: 36 }} value={selectedCursoId} onChange={e => setSelectedCursoId(e.target.value)}>
-                  {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.creditos || 1} CR)</option>)}
                 </select>
               )}
-              <button style={{ ...btnSecondary, height: 36, marginLeft: 10 }} onClick={() => setShowNewCurso(true)}>
+              <button 
+                style={{ ...btnSecondary, height: 36, marginLeft: 10 }} 
+                onClick={() => {
+                  setNewCursoNombre("");
+                  setNewCursoCreditos(1);
+                  setShowNewCurso(true);
+                }}
+              >
                 <Plus size={14} /> Nuevo Curso
               </button>
+              {cursos.length > 0 && (
+                <button 
+                  style={{ ...btnSecondary, height: 36, marginLeft: 5 }} 
+                  onClick={() => {
+                    const currentCurso = cursos.find(c => c.id === selectedCursoId);
+                    if (currentCurso) {
+                      setEditCursoId(currentCurso.id);
+                      setEditCursoNombre(currentCurso.nombre);
+                      setEditCursoCreditos(currentCurso.creditos || 1);
+                      setShowEditCurso(true);
+                    }
+                  }}
+                >
+                  <Edit size={14} /> Editar Curso
+                </button>
+              )}
             </div>
             
             {cursos.length > 0 && (
@@ -419,9 +477,54 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
               required 
             />
           </div>
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.7)", marginBottom: 6, textTransform: "uppercase" }}>Créditos *</label>
+            <input 
+              type="number"
+              min={1}
+              style={inpStyle} 
+              placeholder="Ej: 3" 
+              value={newCursoCreditos} 
+              onChange={e => setNewCursoCreditos(Number(e.target.value))} 
+              required 
+            />
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
             <button type="button" style={btnSecondary} onClick={() => setShowNewCurso(false)}>Cancelar</button>
             <button type="submit" style={btnPrimary} disabled={saving}>Crear Curso</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Editar Curso */}
+      <Modal open={showEditCurso} onClose={() => setShowEditCurso(false)} title="Editar Curso" maxWidth="400px">
+        <form onSubmit={updateCurso}>
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.7)", marginBottom: 6, textTransform: "uppercase" }}>Nombre del Curso *</label>
+            <input 
+              style={inpStyle} 
+              autoFocus
+              placeholder="Ej: Mantenimiento I" 
+              value={editCursoNombre} 
+              onChange={e => setEditCursoNombre(e.target.value)} 
+              required 
+            />
+          </div>
+          <div style={{ marginBottom: 15 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.7)", marginBottom: 6, textTransform: "uppercase" }}>Créditos *</label>
+            <input 
+              type="number"
+              min={1}
+              style={inpStyle} 
+              placeholder="Ej: 3" 
+              value={editCursoCreditos} 
+              onChange={e => setEditCursoCreditos(Number(e.target.value))} 
+              required 
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button type="button" style={btnSecondary} onClick={() => setShowEditCurso(false)}>Cancelar</button>
+            <button type="submit" style={btnPrimary} disabled={saving}>Guardar Cambios</button>
           </div>
         </form>
       </Modal>

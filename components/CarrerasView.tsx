@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { GraduationCap, Plus, X, Pencil, Trash2, Layers, Users } from "lucide-react";
+import { GraduationCap, Plus, X, Pencil, Trash2, Layers, Users, ChevronLeft, Calendar, Clock, MapPin, User } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
+import ModulosView from "./ModulosView";
 
 interface Carrera {
   id: string;
@@ -51,6 +52,15 @@ const btnS: React.CSSProperties = {
   fontFamily: "inherit", cursor: "pointer",
 };
 
+const MODALIDAD_COLORS: Record<string, string> = {
+  presencial: "rgba(52,211,153,0.15)",
+  virtual: "rgba(251,191,36,0.15)",
+  semipresencial: "rgba(139,92,246,0.15)",
+};
+const MODALIDAD_TEXT: Record<string, string> = {
+  presencial: "#34d399", virtual: "#fbbf24", semipresencial: "#a78bfa",
+};
+
 export default function CarrerasView() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +71,11 @@ export default function CarrerasView() {
   const [msg, setMsg] = useState<{ open: boolean; type: "success" | "error"; text: string }>({ open: false, type: "success", text: "" });
   const [form, setForm] = useState({ nombre: "", descripcion: "" });
   const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  // States for viewing career modules
+  const [viewingModulos, setViewingModulos] = useState<Carrera | null>(null);
+  const [carreraModulos, setCarreraModulos] = useState<any[]>([]);
+  const [loadingModulos, setLoadingModulos] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -75,6 +90,27 @@ export default function CarrerasView() {
     const data = await res.json();
     setCarreras(Array.isArray(data) ? data : []);
     setLoading(false);
+  }
+
+  async function loadCarreraModulos(carreraId: string) {
+    setLoadingModulos(true);
+    try {
+      const res = await fetch(`/api/modulos?carrera_id=${carreraId}`);
+      const data = await res.json();
+      setCarreraModulos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      flash("error", "Error al cargar los módulos de la carrera");
+    } finally {
+      setLoadingModulos(false);
+    }
+  }
+
+  function getStatus(m: any) {
+    const now = new Date(), s = new Date(m.fecha_inicio), e = new Date(m.fecha_fin);
+    if (now < s) return { label: "Próximo", color: "#fbbf24" };
+    if (now > e) return { label: "Concluido", color: "#94a3b8" };
+    return { label: "En curso", color: "#34d399" };
   }
 
   function flash(type: "success" | "error", text: string) {
@@ -134,7 +170,7 @@ export default function CarrerasView() {
   const isFormOpen = showForm || !!editTarget;
 
   return (
-    <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ width: "92%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
         .cr-input:focus { border-color:rgba(74,179,216,.55)!important; box-shadow:0 0 0 3px rgba(74,179,216,.1)!important; }
         .cr-btn-p:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 24px rgba(42,109,181,.45)!important;}
@@ -145,21 +181,23 @@ export default function CarrerasView() {
       `}</style>
 
       {/* Header */}
-      <div style={{ ...card, padding: "24px 28px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", fontFamily: "'Syne',sans-serif", marginBottom: 4 }}>
-              Gestión de Carreras
-            </h2>
-            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>
-              Administre las carreras del instituto. Cada carrera agrupa módulos y alumnos.
-            </p>
+      {!viewingModulos && (
+        <div style={{ ...card, padding: "24px 28px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <h2 style={{ fontSize: 23, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>
+                Gestión de Carreras
+              </h2>
+              <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>
+                Administre las carreras del instituto. Cada carrera agrupa módulos y alumnos.
+              </p>
+            </div>
+            <button className="cr-btn-p" style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ nombre: "", descripcion: "" }); }}>
+              <Plus size={14} /> Nueva Carrera
+            </button>
           </div>
-          <button className="cr-btn-p" style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ nombre: "", descripcion: "" }); }}>
-            <Plus size={14} /> Nueva Carrera
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Alerts */}
       <AlertDialog
@@ -170,8 +208,8 @@ export default function CarrerasView() {
       />
 
       {/* Form crear / editar */}
-      <Modal 
-        open={isFormOpen} 
+      <Modal
+        open={isFormOpen}
         onClose={() => { setShowForm(false); setEditTarget(null); }}
         title={editTarget ? "Editar Carrera" : "Nueva Carrera"}
       >
@@ -227,11 +265,10 @@ export default function CarrerasView() {
       </ConfirmDialog>
 
       {/* Stats */}
-      {!loading && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+      {!viewingModulos && !loading && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 16 }}>
           {[
             { label: "Total Carreras", value: carreras.length, color: "#4ab3d8" },
-            { label: "Total Módulos", value: carreras.reduce((s, c) => s + (c.total_modulos ?? 0), 0), color: "#818cf8" },
             { label: "Alumnos Matriculados", value: carreras.reduce((s, c) => s + (c.total_alumnos ?? 0), 0), color: "#34d399" },
           ].map(s => (
             <div key={s.label} style={{ ...card, padding: "20px 24px" }}>
@@ -243,80 +280,91 @@ export default function CarrerasView() {
       )}
 
       {/* Grid de carreras */}
-      {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-          {[1, 2, 3].map(i => (
-            <div key={i} style={{ height: 160, borderRadius: 14, background: "rgba(42,109,181,0.07)", animation: `pulse 1.5s ${i * 0.15}s ease-in-out infinite alternate` }} />
-          ))}
-        </div>
-      ) : carreras.length === 0 ? (
-        <div style={{ padding: "60px 20px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
-          <GraduationCap size={48} style={{ margin: "0 auto 12px", opacity: 0.2 }} />
-          <p style={{ fontSize: 13 }}>No hay carreras registradas aún</p>
-        </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-          {carreras.map(c => (
-            <div
-              key={c.id}
-              className="cr-card-hover"
-              style={{ ...card, padding: 22, display: "flex", flexDirection: "column", gap: 14, transition: "all .2s", cursor: "default" }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                  background: "linear-gradient(135deg,rgba(42,109,181,0.25),rgba(74,179,216,0.15))",
-                  border: "1px solid rgba(74,179,216,0.2)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <GraduationCap size={18} style={{ color: "#4ab3d8" }} />
+      {!viewingModulos && (
+        loading ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ height: 160, borderRadius: 14, background: "rgba(42,109,181,0.07)", animation: `pulse 1.5s ${i * 0.15}s ease-in-out infinite alternate` }} />
+            ))}
+          </div>
+        ) : carreras.length === 0 ? (
+          <div style={{ padding: "60px 20px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
+            <GraduationCap size={48} style={{ margin: "0 auto 12px", opacity: 0.2 }} />
+            <p style={{ fontSize: 13 }}>No hay carreras registradas aún</p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
+            {carreras.map(c => (
+              <div
+                key={c.id}
+                className="cr-card-hover"
+                style={{ ...card, padding: 22, display: "flex", flexDirection: "column", gap: 14, transition: "all .2s", cursor: "pointer" }}
+                onClick={() => { setViewingModulos(c); loadCarreraModulos(c.id); }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                    background: "linear-gradient(135deg,rgba(42,109,181,0.25),rgba(74,179,216,0.15))",
+                    border: "1px solid rgba(74,179,216,0.2)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <GraduationCap size={18} style={{ color: "#4ab3d8" }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      className="cr-action"
+                      style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
+                      title="Editar"
+                      onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      className="cr-del"
+                      style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
+                      title="Eliminar"
+                      onClick={(e) => { e.stopPropagation(); setDelTarget(c); }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button
-                    className="cr-action"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
-                    title="Editar"
-                    onClick={() => openEdit(c)}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    className="cr-del"
-                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
-                    title="Eliminar"
-                    onClick={() => setDelTarget(c)}
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
 
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#dbeafe", lineHeight: 1.3 }}>{c.nombre}</div>
-                {c.descripcion && (
-                  <div style={{ fontSize: 12, color: "rgba(120,160,210,0.65)", marginTop: 4, lineHeight: 1.5 }}>{c.descripcion}</div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#dbeafe", lineHeight: 1.3 }}>{c.nombre}</div>
+                  {c.descripcion && (
+                    <div style={{ fontSize: 12, color: "rgba(120,160,210,0.65)", marginTop: 4, lineHeight: 1.5 }}>{c.descripcion}</div>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: 12, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
+                    <Layers size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
+                    {c.total_modulos ?? 0} módulos
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
+                    <Users size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
+                    {c.total_alumnos ?? 0} alumnos
+                  </div>
+                </div>
+
+                {c.created_by && (
+                  <div style={{ fontSize: 10, color: "rgba(42,109,181,0.45)", borderTop: "1px solid rgba(42,109,181,0.08)", paddingTop: 8 }}>
+                    Creado por: {c.created_by}
+                  </div>
                 )}
               </div>
+            ))}
+          </div>
+        )
+      )}
 
-              <div style={{ display: "flex", gap: 12, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
-                  <Layers size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
-                  {c.total_modulos ?? 0} módulos
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
-                  <Users size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
-                  {c.total_alumnos ?? 0} alumnos
-                </div>
-              </div>
-
-              {c.created_by && (
-                <div style={{ fontSize: 10, color: "rgba(42,109,181,0.45)", borderTop: "1px solid rgba(42,109,181,0.08)", paddingTop: 8 }}>
-                  Creado por: {c.created_by}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+      {/* ── Vista de Módulos de una Carrera ── */}
+      {viewingModulos && (
+        <ModulosView
+          carreraId={viewingModulos.id}
+          onBack={() => setViewingModulos(null)}
+        />
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
 import ReporteAsistenciaBtn from "./ReporteAsistenciaBtn";
 import ReporteMatriculaBtn from "./ReporteMatriculaBtn";
+import ReporteModuloBtn from "./ReporteModuloBtn";
 
 interface Carrera { id: string; nombre: string; }
 interface Curso { id: string; nombre: string; orden: number; }
@@ -47,7 +48,15 @@ const emptyForm = {
   duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: "", docente_id: ""
 };
 
-export default function ModulosView({ onNavigate }: { onNavigate?: (view: string) => void }) {
+export default function ModulosView({ 
+  onNavigate, 
+  carreraId, 
+  onBack 
+}: { 
+  onNavigate?: (view: string) => void;
+  carreraId?: string;
+  onBack?: () => void;
+}) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [docentes, setDocentes] = useState<any[]>([]);
@@ -57,16 +66,19 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
   const [delTarget, setDelTarget] = useState<Modulo | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ open: boolean; type: "success" | "error"; text: string }>({ open: false, type: "success", text: "" });
-  const [form, setForm] = useState(emptyForm);
-  const [filterCarrera, setFilterCarrera] = useState("");
+  const [form, setForm] = useState({
+    ...emptyForm,
+    carrera_id: carreraId || ""
+  });
+  const [filterStatus, setFilterStatus] = useState("");
 
   const [viewingAlumnos, setViewingAlumnos] = useState<Modulo | null>(null);
   const [alumnosMatriculados, setAlumnosMatriculados] = useState<any[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
 
-  useEffect(() => { loadCarreras(); loadModulos(); loadDocentes(); }, []);
+  useEffect(() => { loadCarreras(); loadModulos(); loadDocentes(); }, [carreraId]);
 
-  async function loadModulos(carreraId?: string) {
+  async function loadModulos() {
     setLoading(true);
     const url = carreraId ? `/api/modulos?carrera_id=${carreraId}` : "/api/modulos";
     const res = await fetch(url);
@@ -110,8 +122,8 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
     const data = await res.json(); setSubmitting(false);
     if (!res.ok) { flash("error", data.error); return; }
     flash("success", `Módulo "${data.nombre}" creado`);
-    setForm(emptyForm); setShowForm(false);
-    loadModulos(filterCarrera || undefined);
+    setForm({ ...emptyForm, carrera_id: carreraId || "" }); setShowForm(false);
+    loadModulos();
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -133,7 +145,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
     const data = await res.json(); setSubmitting(false);
     if (!res.ok) { flash("error", data.error); return; }
     flash("success", `Módulo "${data.nombre}" actualizado`);
-    setEditTarget(null); loadModulos(filterCarrera || undefined);
+    setEditTarget(null); loadModulos();
   }
 
   async function handleDelete() {
@@ -142,7 +154,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
     setSubmitting(false);
     if (!res.ok) { flash("error", "Error al eliminar"); return; }
     flash("success", `Módulo "${delTarget.nombre}" eliminado`);
-    setDelTarget(null); loadModulos(filterCarrera || undefined);
+    setDelTarget(null); loadModulos();
   }
 
   function openEdit(m: Modulo) {
@@ -185,22 +197,27 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
         <div style={{ ...card, padding: "24px 28px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
                 <button 
                   onClick={() => setViewingAlumnos(null)}
-                  style={{ background: "rgba(42,109,181,0.1)", border: "1px solid rgba(42,109,181,0.2)", borderRadius: 8, padding: 6, color: "rgba(120,160,210,0.8)", cursor: "pointer", display: "flex" }}
+                  className="ts-btn-back"
+                  style={{ background: "#ffffff", border: "none", borderRadius: 10, padding: "8px 14px", color: "#0f172a", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, transition: "background .2s, transform .15s" }}
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={15} style={{ strokeWidth: 2.5 }} />
+                  <span>Regresar</span>
                 </button>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Alumnos Matriculados</h2>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 16 }}>
                 <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>Módulo: <strong style={{color: "#4ab3d8"}}>{viewingAlumnos.nombre}</strong></p>
-                {onNavigate && (
-                  <button onClick={() => onNavigate("docentes")} style={{ ...btnS, padding: "6px 12px", fontSize: 12 }}>
-                    <GraduationCap size={14} /> Ir a Registro Docente
-                  </button>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <ReporteModuloBtn moduloId={viewingAlumnos.id} text="Registro de Notas" style={{ height: 28 }} />
+                  {onNavigate && (
+                    <button onClick={() => onNavigate("docentes")} style={{ ...btnS, padding: "6px 12px", fontSize: 12, height: 28 }}>
+                      <GraduationCap size={14} /> Ir a Registro Docente
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -258,33 +275,54 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
     );
   }
 
+  const filteredModulos = modulos.filter(m => {
+    if (!filterStatus) return true;
+    return getStatus(m).label === filterStatus;
+  });
+
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ maxWidth: carreraId ? "none" : 1100, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
         .md-inp:focus{border-color:rgba(74,179,216,.55)!important;box-shadow:0 0 0 3px rgba(74,179,216,.1)!important;}
         .md-card:hover{border-color:rgba(74,179,216,.3)!important;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
         .md-action:hover{background:rgba(42,109,181,.15)!important;color:#4ab3d8!important;}
         .md-del:hover{background:rgba(248,113,113,.1)!important;color:#f87171!important;}
+        .ts-btn-back:hover { background: #f1f5f9!important; transform: translateY(-1px); }
+        .ts-btn-back:active { transform: translateY(0); }
       `}</style>
 
       {/* Header */}
       <div style={{ ...card, padding: "24px 28px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Gestión de Módulos</h2>
-            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>Módulos académicos del instituto con profesor y aula</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+              {onBack && (
+                <button 
+                  onClick={onBack}
+                  className="ts-btn-back"
+                  style={{ background: "#ffffff", border: "none", borderRadius: 10, padding: "8px 14px", color: "#0f172a", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, transition: "background .2s, transform .15s" }}
+                >
+                  <ChevronLeft size={15} style={{ strokeWidth: 2.5 }} />
+                  <span>Regresar</span>
+                </button>
+              )}
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Gestión de Módulos</h2>
+            </div>
+            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", marginTop: 4 }}>Módulos académicos del instituto con profesor y aula</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {/* Filtro por carrera */}
+            {/* Filtro por estado del módulo */}
             <div style={{ position: "relative" }}>
-              <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer", height: 40, fontSize: 12 }} value={filterCarrera}
-                onChange={e => { setFilterCarrera(e.target.value); loadModulos(e.target.value || undefined); }}>
-                <option value="">Todas las carreras</option>
-                {carreras.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer", height: 40, fontSize: 12 }} value={filterStatus}
+                onChange={e => setFilterStatus(e.target.value)}>
+                <option value="">Todos los estados</option>
+                <option value="Próximo">Próximo</option>
+                <option value="En curso">En curso</option>
+                <option value="Concluido">Concluido</option>
               </select>
               <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
             </div>
-            <button style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm(emptyForm); }}>
+            <button style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ ...emptyForm, carrera_id: carreraId || "" }); }}>
               <Plus size={14} /> Nuevo Módulo
             </button>
           </div>
@@ -313,16 +351,18 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
               <input className="md-inp" style={inp} list="mod-sug" placeholder="Ej: Cargador Frontal" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} required />
               <datalist id="mod-sug">{sugerencias.map(n => <option key={n} value={n} />)}</datalist>
             </div>
-            <div>
-              <label style={lbl}>Carrera</label>
-              <div style={{ position: "relative" }}>
-                <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer" }} value={form.carrera_id} onChange={e => setForm(p => ({ ...p, carrera_id: e.target.value }))}>
-                  <option value="">Sin carrera</option>
-                  {carreras.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+            {!carreraId && (
+              <div>
+                <label style={lbl}>Carrera</label>
+                <div style={{ position: "relative" }}>
+                  <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer" }} value={form.carrera_id} onChange={e => setForm(p => ({ ...p, carrera_id: e.target.value }))}>
+                    <option value="">Sin carrera</option>
+                    {carreras.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                  <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+                </div>
               </div>
-            </div>
+            )}
             <div>
               <label style={lbl}>Modalidad *</label>
               <div style={{ position: "relative" }}>
@@ -348,7 +388,18 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
             </div>
             <div style={{ gridColumn: "1/-1" }}>
               <label style={lbl}>Horario *</label>
-              <input className="md-inp" style={inp} placeholder="Ej: Lunes a Viernes 8:00 AM - 12:00 PM" value={form.horario} onChange={e => setForm(p => ({ ...p, horario: e.target.value }))} required />
+              <input className="md-inp" style={inp} list="horario-sug" placeholder="Ej: Lunes a Viernes 8:00 AM - 12:00 PM" value={form.horario} onChange={e => setForm(p => ({ ...p, horario: e.target.value }))} required />
+              <datalist id="horario-sug">
+                <option value="Lunes a Viernes 8:00 AM - 12:00 PM" />
+                <option value="Lunes a Viernes 2:00 PM - 6:00 PM" />
+                <option value="Lunes a Viernes 6:00 PM - 10:00 PM" />
+                <option value="Sábados y Domingos 8:00 AM - 1:00 PM" />
+                <option value="Sábados y Domingos 2:00 PM - 7:00 PM" />
+                <option value="Sábados 8:00 AM - 1:00 PM" />
+                <option value="Sábados 2:00 PM - 7:00 PM" />
+                <option value="Domingos 8:00 AM - 1:00 PM" />
+                <option value="Domingos 2:00 PM - 7:00 PM" />
+              </datalist>
             </div>
             <div>
               <label style={lbl}>Docente Asignado</label>
@@ -433,7 +484,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-          {modulos.map(m => {
+          {filteredModulos.map(m => {
             const status = getStatus(m);
             return (
               <div key={m.id} className="md-card" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 12, transition: "all .2s" }}>
@@ -450,6 +501,7 @@ export default function ModulosView({ onNavigate }: { onNavigate?: (view: string
                       <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => onNavigate("docentes")} title="Ir a Panel Docente (Notas y Asistencia)"><GraduationCap size={12} /></button>
                     )}
                     <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => loadAlumnosModulo(m)} title="Ver Alumnos"><Users size={12} /></button>
+                    <ReporteModuloBtn moduloId={m.id} style={{ width: 26, height: 26, borderRadius: 7 }} />
                     <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => openEdit(m)} title="Editar"><Pencil size={12} /></button>
                     <button className="md-del" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => setDelTarget(m)} title="Eliminar"><Trash2 size={12} /></button>
                   </div>

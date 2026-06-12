@@ -23,6 +23,7 @@ export interface Carrera {
 export interface Alumno {
   id: string
   dni: string
+  codigo?: string | null
   nombres: string
   apellidos: string
   carrera: string            // legacy text field (kept for compatibility)
@@ -75,6 +76,7 @@ export interface Curso {
   nombre: string
   descripcion?: string | null
   orden: number
+  creditos?: number
   created_at?: string
   created_by?: string | null
   // relations
