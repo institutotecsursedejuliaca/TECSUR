@@ -36,6 +36,7 @@ interface DocentesViewProps {
 
 export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const [cursosDocente, setCursosDocente] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModulo, setSelectedModulo] = useState<Modulo | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,8 +68,26 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" }>({ open: false, message: "", type: "success" });
 
   useEffect(() => {
-    const url = docenteId ? `/api/modulos?docente_id=${docenteId}` : "/api/modulos";
-    fetch(url).then(r => r.json()).then(data => { setModulos(Array.isArray(data) ? data : []); setLoading(false); });
+    setLoading(true);
+    if (docenteId) {
+      // Cargar los cursos asignados al docente
+      fetch(`/api/cursos?docente_id=${docenteId}`)
+        .then(r => r.json())
+        .then(data => {
+          setCursosDocente(Array.isArray(data) ? data : []);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    } else {
+      // Cargar módulos generales para el administrador
+      fetch("/api/modulos")
+        .then(r => r.json())
+        .then(data => {
+          setModulos(Array.isArray(data) ? data : []);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    }
   }, [docenteId]);
 
   useEffect(() => {
@@ -86,8 +105,9 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
     setMatriculas(Array.isArray(data) ? data : []);
   };
 
-  const loadAsistencias = async (moduloId: string, fecha: string) => {
-    const res = await fetch(`/api/asistencias?modulo_id=${moduloId}&fecha=${fecha}`);
+  const loadAsistencias = async (moduloId: string, cursoId: string, fecha: string) => {
+    if (!cursoId) return;
+    const res = await fetch(`/api/asistencias?modulo_id=${moduloId}&curso_id=${cursoId}&fecha=${fecha}`);
     const data: Asistencia[] = await res.json();
     const asisMap: Record<string, boolean> = {};
     const obsMap: Record<string, string> = {};
@@ -130,10 +150,10 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   }, [selectedModulo]);
 
   useEffect(() => {
-    if (selectedModulo && tab === "asistencia" && fechaAsistencia) {
-      loadAsistencias(selectedModulo.id, fechaAsistencia);
+    if (selectedModulo && tab === "asistencia" && selectedCursoId && fechaAsistencia) {
+      loadAsistencias(selectedModulo.id, selectedCursoId, fechaAsistencia);
     }
-  }, [selectedModulo, tab, fechaAsistencia]);
+  }, [selectedModulo, tab, selectedCursoId, fechaAsistencia]);
 
   useEffect(() => {
     if (tab === "notas" && selectedCursoId) {
@@ -157,6 +177,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           body: JSON.stringify({
             matricula_id: m.id,
             modulo_id: selectedModulo.id,
+            curso_id: selectedCursoId,
             fecha: fechaAsistencia,
             estado: presente ? "presente" : "falta",
             observacion: obs.trim() === "" ? null : obs.trim()
@@ -260,14 +281,16 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
         <div style={{ ...cardStyle, padding: "24px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Panel Docente</h2>
-            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>Seleccione un módulo para registrar asistencia y notas.</p>
+            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>
+              {docenteId ? "Seleccione un curso para registrar asistencia y notas." : "Seleccione un módulo para registrar asistencia y notas."}
+            </p>
           </div>
           {/* Buscador */}
           <div style={{ position: "relative", width: 320 }}>
             <Search size={15} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,.5)" }} />
             <input
               type="text"
-              placeholder="Buscar módulo o carrera…"
+              placeholder={docenteId ? "Buscar curso o carrera…" : "Buscar módulo o carrera…"}
               style={{ ...inpStyle, paddingLeft: 38, fontSize: 13 }}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -275,58 +298,125 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           </div>
         </div>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#4ab3d8" }}>Cargando módulos...</div>
+          <div style={{ textAlign: "center", padding: 40, color: "#4ab3d8" }}>
+            {docenteId ? "Cargando cursos..." : "Cargando módulos..."}
+          </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-            {modulos
-              .filter(m => !docenteId || new Date().toLocaleDateString('sv-SE') <= m.fecha_fin)
-              .filter(m => {
-                if (!searchQuery.trim()) return true;
-                const q = searchQuery.toLowerCase();
-                return m.nombre.toLowerCase().includes(q) || (m.carreras?.nombre || "").toLowerCase().includes(q);
-              })
-              .map(m => {
-                const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
-              return (
-                <div key={m.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }} 
-                     onClick={() => setSelectedModulo(m)}
-                     onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
-                     onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
-                  
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{m.modalidad}</span>
-                      <span style={{ 
-                        fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: 0.5,
-                        background: isFinished ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
-                        color: isFinished ? "#94a3b8" : "#34d399"
-                      }}>
-                        {isFinished ? "FINALIZADO" : "EN CURSO"}
-                      </span>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <ReporteModuloBtn moduloId={m.id} />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    {m.carreras && (
-                      <div style={{ marginBottom: 6 }}>
-                        <span style={carreraBadgeStyle(m.carreras.nombre)}>
-                          {m.carreras.nombre}
-                        </span>
+            {docenteId ? (
+              cursosDocente
+                .filter(c => {
+                  const m = c.modulos;
+                  return !m || new Date().toLocaleDateString('sv-SE') <= m.fecha_fin;
+                })
+                .filter(c => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase();
+                  const m = c.modulos || {};
+                  return c.nombre.toLowerCase().includes(q) || (m.nombre || "").toLowerCase().includes(q) || (m.carreras?.nombre || "").toLowerCase().includes(q);
+                })
+                .map(c => {
+                  const m = c.modulos || {};
+                  const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
+                  return (
+                    <div key={c.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }} 
+                         onClick={() => {
+                           setSelectedModulo(m);
+                           setSelectedCursoId(c.id);
+                         }}
+                         onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
+                         onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
+                      
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{m.modalidad}</span>
+                          <span style={{ 
+                            fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: 0.5,
+                            background: isFinished ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
+                            color: isFinished ? "#94a3b8" : "#34d399"
+                          }}>
+                            {isFinished ? "FINALIZADO" : "EN CURSO"}
+                          </span>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ReporteModuloBtn moduloId={m.id} />
+                        </div>
                       </div>
-                    )}
-                    <h3 style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{m.nombre}</h3>
-                  </div>
-                  
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.profesor || "Docente no asignado"}</div>
-                  </div>
-                </div>
-              );
-            })}
+                      
+                      <div>
+                        {m.carreras && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={carreraBadgeStyle(m.carreras.nombre)}>
+                              {m.carreras.nombre}
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(42,109,181,0.18)", border: "1px solid rgba(42,109,181,0.3)", color: "rgba(120,160,210,0.9)", fontWeight: 600 }}>
+                            Módulo: {m.nombre}
+                          </span>
+                        </div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{c.nombre}</h3>
+                      </div>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> Créditos: {c.creditos || 1} CR</div>
+                      </div>
+                    </div>
+                  );
+                })
+            ) : (
+              modulos
+                .filter(m => !docenteId || new Date().toLocaleDateString('sv-SE') <= m.fecha_fin)
+                .filter(m => {
+                  if (!searchQuery.trim()) return true;
+                  const q = searchQuery.toLowerCase();
+                  return m.nombre.toLowerCase().includes(q) || (m.carreras?.nombre || "").toLowerCase().includes(q);
+                })
+                .map(m => {
+                  const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
+                  return (
+                    <div key={m.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }} 
+                         onClick={() => setSelectedModulo(m)}
+                         onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
+                         onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
+                      
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{m.modalidad}</span>
+                          <span style={{ 
+                            fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: 0.5,
+                            background: isFinished ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
+                            color: isFinished ? "#94a3b8" : "#34d399"
+                          }}>
+                            {isFinished ? "FINALIZADO" : "EN CURSO"}
+                          </span>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <ReporteModuloBtn moduloId={m.id} />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {m.carreras && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={carreraBadgeStyle(m.carreras.nombre)}>
+                              {m.carreras.nombre}
+                            </span>
+                          </div>
+                        )}
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{m.nombre}</h3>
+                      </div>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.profesor || "Docente no asignado"}</div>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
           </div>
         )}
       </div>
@@ -335,6 +425,83 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ts-docente-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-left: 36px;
+          margin-top: 8px;
+          gap: 16px;
+        }
+        .ts-tabs-container {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+          margin-left: 38px;
+          border-bottom: 1px solid rgba(42,109,181,0.2);
+          overflow-x: auto;
+          scrollbar-width: none;
+        }
+        .ts-tabs-container::-webkit-scrollbar {
+          display: none;
+        }
+        .ts-docente-actions {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        .ts-docente-actions-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .ts-docente-table {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+        }
+        @media (max-width: 768px) {
+          .ts-docente-header {
+            flex-direction: column;
+            align-items: flex-start;
+            margin-left: 0;
+          }
+          .ts-docente-header button {
+            width: 100%;
+            justify-content: center;
+          }
+          .ts-tabs-container {
+            margin-left: 0;
+          }
+          .ts-docente-actions {
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .ts-docente-actions button {
+            width: 100%;
+            justify-content: center;
+          }
+          .ts-docente-actions-left {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+          }
+          .ts-docente-actions-left select {
+            width: 100% !important;
+          }
+          .ts-docente-actions-left input {
+            width: 100% !important;
+          }
+          .ts-docente-table {
+            min-width: 500px;
+          }
+        }
+      `}} />
       <AlertDialog open={alertInfo.open} type={alertInfo.type} message={alertInfo.message} onClose={() => setAlertInfo(p => ({...p, open: false}))} />
       
       {/* Header Módulo */}
@@ -343,9 +510,20 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           <button onClick={() => setSelectedModulo(null)} style={{ background: "rgba(42,109,181,0.1)", border: "1px solid rgba(42,109,181,0.2)", borderRadius: 8, padding: 6, color: "rgba(120,160,210,0.8)", cursor: "pointer" }}>
             <ChevronLeft size={16} />
           </button>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>{selectedModulo.nombre}</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>
+            {docenteId ? (
+              <>
+                {cursos.find(c => c.id === selectedCursoId)?.nombre || "Cargando..."}
+                <span style={{ fontSize: 13, color: "rgba(74,179,216,0.75)", marginLeft: 10, fontWeight: 600 }}>
+                  (Módulo: {selectedModulo.nombre})
+                </span>
+              </>
+            ) : (
+              selectedModulo.nombre
+            )}
+          </h2>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginLeft: 36, marginTop: 8 }}>
+        <div className="ts-docente-header">
           <div style={{ display: "flex", alignItems: "center", gap: 15, flexWrap: "wrap", fontSize: 12, color: "rgba(120,160,210,0.8)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ 
@@ -365,7 +543,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 10, marginTop: 20, marginLeft: 38, borderBottom: "1px solid rgba(42,109,181,0.2)" }}>
+        <div className="ts-tabs-container">
           <button 
             style={{ padding: "10px 20px", background: "transparent", border: "none", borderBottom: tab === "asistencia" ? "2px solid #4ab3d8" : "2px solid transparent", color: tab === "asistencia" ? "#dbeafe" : "rgba(120,160,210,0.6)", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all .2s" }}
             onClick={() => setTab("asistencia")}
@@ -381,11 +559,15 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
         </div>
       </div>
 
-      {/* Tab Content: Asistencia */}
       {tab === "asistencia" && (
         <div style={{ ...cardStyle, padding: "24px 28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ts-docente-actions">
+            <div className="ts-docente-actions-left">
+              {docenteId && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#4ab3d8", marginRight: 15 }}>
+                  Curso: {cursos.find(c => c.id === selectedCursoId)?.nombre || "Cargando..."}
+                </span>
+              )}
               <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(74,179,216,0.8)", textTransform: "uppercase" }}>Fecha:</label>
               <input type="date" style={{ ...inpStyle, width: 160, height: 36 }} value={fechaAsistencia} onChange={e => setFechaAsistencia(e.target.value)} />
             </div>
@@ -395,7 +577,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           </div>
 
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+            <table className="ts-docente-table">
               <thead>
                 <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.2)" }}>
                   <th style={{ padding: "12px", fontSize: 11, color: "rgba(74,179,216,0.6)", textTransform: "uppercase" }}>N°</th>
@@ -437,21 +619,26 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
         </div>
       )}
 
-      {/* Tab Content: Notas */}
       {tab === "notas" && (
         <div style={{ ...cardStyle, padding: "24px 28px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="ts-docente-actions">
+            <div className="ts-docente-actions-left">
               <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(74,179,216,0.8)", textTransform: "uppercase" }}>Curso:</label>
-              {cursos.length === 0 ? (
-                <span style={{ fontSize: 12, color: "rgba(248,113,113,0.8)" }}>No hay cursos creados.</span>
+              {docenteId ? (
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#4ab3d8" }}>
+                  {cursos.find(c => c.id === selectedCursoId)?.nombre || "Cargando..."}
+                </span>
               ) : (
-                <select style={{ ...inpStyle, width: 260, height: 36 }} value={selectedCursoId} onChange={e => setSelectedCursoId(e.target.value)}>
-                  {cursos.map(c => {
-                    const docName = (c as any).docentes ? ` - ${((c as any).docentes.nombres || "").split(" ")[0]} ${((c as any).docentes.apellidos || "").split(" ")[0]}` : "";
-                    return <option key={c.id} value={c.id}>{c.nombre} ({c.creditos || 1} CR){docName}</option>;
-                  })}
-                </select>
+                cursos.length === 0 ? (
+                  <span style={{ fontSize: 12, color: "rgba(248,113,113,0.8)" }}>No hay cursos creados.</span>
+                ) : (
+                  <select style={{ ...inpStyle, width: 260, height: 36 }} value={selectedCursoId} onChange={e => setSelectedCursoId(e.target.value)}>
+                    {cursos.map(c => {
+                      const docName = (c as any).docentes ? ` - ${((c as any).docentes.nombres || "").split(" ")[0]} ${((c as any).docentes.apellidos || "").split(" ")[0]}` : "";
+                      return <option key={c.id} value={c.id}>{c.nombre} ({c.creditos || 1} CR){docName}</option>;
+                    })}
+                  </select>
+                )
               )}
               {!docenteId && (
                 <>
@@ -495,7 +682,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
 
           {cursos.length > 0 && (
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <table className="ts-docente-table">
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.2)" }}>
                     <th style={{ padding: "12px", fontSize: 11, color: "rgba(74,179,216,0.6)", textTransform: "uppercase" }}>N°</th>

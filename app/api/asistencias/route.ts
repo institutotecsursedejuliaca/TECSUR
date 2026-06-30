@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-// GET /api/asistencias?matricula_id=xxx&modulo_id=xxx&fecha=YYYY-MM-DD
+// GET /api/asistencias?matricula_id=xxx&modulo_id=xxx&curso_id=yyy&fecha=YYYY-MM-DD
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const matriculaId = searchParams.get("matricula_id");
   const moduloId = searchParams.get("modulo_id");
+  const cursoId = searchParams.get("curso_id");
   const fecha = searchParams.get("fecha");
 
   let query = supabase
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
 
   if (matriculaId) query = query.eq("matricula_id", matriculaId);
   if (moduloId)    query = query.eq("modulo_id", moduloId);
+  if (cursoId)     query = query.eq("curso_id", cursoId);
   if (fecha)       query = query.eq("fecha", fecha);
 
   const { data, error } = await query;
@@ -32,10 +34,10 @@ export async function GET(request: NextRequest) {
 // POST /api/asistencias — registrar asistencia
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { matricula_id, modulo_id, fecha, estado, hora_entrada, hora_salida, duracion_min, observacion } = body;
+  const { matricula_id, modulo_id, curso_id, fecha, estado, hora_entrada, hora_salida, duracion_min, observacion } = body;
 
-  if (!matricula_id || !modulo_id) {
-    return Response.json({ error: "matricula_id y modulo_id son requeridos" }, { status: 400 });
+  if (!matricula_id || !modulo_id || !curso_id) {
+    return Response.json({ error: "matricula_id, modulo_id y curso_id son requeridos" }, { status: 400 });
   }
 
   const estadoValido = ["presente", "tardanza", "falta", "justificado"];
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
   const payload = {
     matricula_id,
     modulo_id,
+    curso_id,
     fecha: fecha || new Date().toISOString().split("T")[0],
     estado: estado || "presente",
     hora_entrada: hora_entrada || null,
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("asistencias")
-    .upsert([payload], { onConflict: "matricula_id,fecha" })
+    .upsert([payload], { onConflict: "matricula_id,curso_id,fecha" })
     .select()
     .single();
 

@@ -79,6 +79,29 @@ export default function ModulosView({
   const [alumnosMatriculados, setAlumnosMatriculados] = useState<any[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
 
+  // Estados de Cursos y Docentes
+  const [cursosModulo, setCursosModulo] = useState<any[]>([]);
+  const [docentes, setDocentes] = useState<any[]>([]);
+  const [loadingCursos, setLoadingCursos] = useState(false);
+  const [showCursoForm, setShowCursoForm] = useState(false);
+  const [editCursoTarget, setEditCursoTarget] = useState<any | null>(null);
+  const [delCursoTarget, setDelCursoTarget] = useState<any | null>(null);
+
+  // Formulario del Curso
+  const [cursoNombre, setCursoNombre] = useState("");
+  const [cursoCreditos, setCursoCreditos] = useState(1);
+  const [cursoOrden, setCursoOrden] = useState(1);
+  const [cursoDocenteId, setCursoDocenteId] = useState("");
+  const [cursoDescripcion, setCursoDescripcion] = useState("");
+  const [submittingCurso, setSubmittingCurso] = useState(false);
+
+  // Asistencias específicas por curso
+  const [activeAsistenciaCurso, setActiveAsistenciaCurso] = useState<any | null>(null);
+  const [fechaAsistencia, setFechaAsistencia] = useState(new Date().toLocaleDateString('sv-SE'));
+  const [asistenciasMap, setAsistenciasMap] = useState<Record<string, boolean>>({});
+  const [observacionesMap, setObservacionesMap] = useState<Record<string, string>>({});
+  const [savingAsistencia, setSavingAsistencia] = useState(false);
+
   useEffect(() => { loadCarreras(); loadModulos(); }, [carreraId]);
 
   async function loadModulos() {
@@ -160,17 +183,212 @@ export default function ModulosView({
   const selectedCarreraName = carreras.find(c => c.id === form.carrera_id)?.nombre || "";
   const sugerencias = MODULOS_POR_CARRERA[selectedCarreraName] || MODULOS_POR_CARRERA["default"];
 
+  async function loadCursosModulo(moduloId: string) {
+    setLoadingCursos(true);
+    try {
+      const res = await fetch(`/api/cursos?modulo_id=${moduloId}`);
+      const data = await res.json();
+      setCursosModulo(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingCursos(false);
+    }
+  }
+
+  async function loadDocentes() {
+    try {
+      const res = await fetch("/api/docentes");
+      const data = await res.json();
+      setDocentes(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function loadAlumnosModulo(m: Modulo) {
     setViewingAlumnos(m);
     setLoadingAlumnos(true);
     try {
-      const res = await fetch(`/api/matriculas?modulo_id=${m.id}`);
-      const data = await res.json();
-      setAlumnosMatriculados(Array.isArray(data) ? data : []);
+      const resMat = await fetch(`/api/matriculas?modulo_id=${m.id}`);
+      const dataMat = await resMat.json();
+      setAlumnosMatriculados(Array.isArray(dataMat) ? dataMat : []);
+      
+      await Promise.all([
+        loadCursosModulo(m.id),
+        loadDocentes()
+      ]);
     } catch (err) {
-      flash("error", "Error al cargar alumnos matriculados");
+      flash("error", "Error al cargar los datos del módulo");
     } finally {
       setLoadingAlumnos(false);
+    }
+  }
+
+  async function handleCreateCurso(e: React.FormEvent) {
+    e.preventDefault();
+    if (!viewingAlumnos) return;
+    if (!cursoNombre.trim()) {
+      flash("error", "El nombre del curso es requerido");
+      return;
+    }
+    setSubmittingCurso(true);
+    try {
+      const payload = {
+        modulo_id: viewingAlumnos.id,
+        nombre: cursoNombre.trim(),
+        creditos: Number(cursoCreditos),
+        orden: Number(cursoOrden),
+        docente_id: cursoDocenteId || null,
+        descripcion: cursoDescripcion || null
+      };
+      const res = await fetch("/api/cursos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al crear el curso");
+      flash("success", `Curso "${data.nombre}" creado exitosamente`);
+      setShowCursoForm(false);
+      resetCursoForm();
+      loadCursosModulo(viewingAlumnos.id);
+    } catch (err: any) {
+      flash("error", err.message);
+    } finally {
+      setSubmittingCurso(false);
+    }
+  }
+
+  async function handleEditCurso(e: React.FormEvent) {
+    e.preventDefault();
+    if (!viewingAlumnos || !editCursoTarget) return;
+    if (!cursoNombre.trim()) {
+      flash("error", "El nombre del curso es requerido");
+      return;
+    }
+    setSubmittingCurso(true);
+    try {
+      const payload = {
+        nombre: cursoNombre.trim(),
+        creditos: Number(cursoCreditos),
+        orden: Number(cursoOrden),
+        docente_id: cursoDocenteId || null,
+        descripcion: cursoDescripcion || null
+      };
+      const res = await fetch(`/api/cursos/${editCursoTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al actualizar el curso");
+      flash("success", `Curso "${data.nombre}" actualizado exitosamente`);
+      setEditCursoTarget(null);
+      resetCursoForm();
+      loadCursosModulo(viewingAlumnos.id);
+    } catch (err: any) {
+      flash("error", err.message);
+    } finally {
+      setSubmittingCurso(false);
+    }
+  }
+
+  async function handleDeleteCurso() {
+    if (!viewingAlumnos || !delCursoTarget) return;
+    setSubmittingCurso(true);
+    try {
+      const res = await fetch(`/api/cursos/${delCursoTarget.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar el curso");
+      }
+      flash("success", "Curso eliminado correctamente");
+      setDelCursoTarget(null);
+      loadCursosModulo(viewingAlumnos.id);
+    } catch (err: any) {
+      flash("error", err.message);
+    } finally {
+      setSubmittingCurso(false);
+    }
+  }
+
+  function resetCursoForm() {
+    setCursoNombre("");
+    setCursoCreditos(1);
+    setCursoOrden(1);
+    setCursoDocenteId("");
+    setCursoDescripcion("");
+  }
+
+  function openEditCurso(c: any) {
+    setEditCursoTarget(c);
+    setCursoNombre(c.nombre);
+    setCursoCreditos(c.creditos || 1);
+    setCursoOrden(c.orden || 1);
+    setCursoDocenteId(c.docente_id || "");
+    setCursoDescripcion(c.descripcion || "");
+    setShowCursoForm(true);
+  }
+
+  async function loadAsistenciaCurso(cursoId: string, moduloId: string, fechaStr: string) {
+    try {
+      const res = await fetch(`/api/asistencias?curso_id=${cursoId}&modulo_id=${moduloId}&fecha=${fechaStr}`);
+      const data = await res.json();
+      const newAsis: Record<string, boolean> = {};
+      const newObs: Record<string, string> = {};
+      
+      alumnosMatriculados.forEach(m => {
+        newAsis[m.id] = true;
+        newObs[m.id] = "";
+      });
+
+      if (Array.isArray(data)) {
+        data.forEach(item => {
+          newAsis[item.matricula_id] = item.estado === "presente" || item.estado === "tardanza";
+          newObs[item.matricula_id] = item.observacion || "";
+        });
+      }
+      setAsistenciasMap(newAsis);
+      setObservacionesMap(newObs);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  useEffect(() => {
+    if (activeAsistenciaCurso && viewingAlumnos) {
+      loadAsistenciaCurso(activeAsistenciaCurso.id, viewingAlumnos.id, fechaAsistencia);
+    }
+  }, [activeAsistenciaCurso, fechaAsistencia]);
+
+  async function handleSaveAsistencia() {
+    if (!viewingAlumnos || !activeAsistenciaCurso) return;
+    setSavingAsistencia(true);
+    try {
+      const promises = alumnosMatriculados.map(m => {
+        const isPresent = asistenciasMap[m.id];
+        const payload = {
+          matricula_id: m.id,
+          modulo_id: viewingAlumnos.id,
+          curso_id: activeAsistenciaCurso.id,
+          fecha: fechaAsistencia,
+          estado: isPresent ? "presente" : "falta",
+          observacion: observacionesMap[m.id] || null
+        };
+        return fetch("/api/asistencias", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      });
+      await Promise.all(promises);
+      flash("success", "Asistencia del curso guardada correctamente");
+      setActiveAsistenciaCurso(null);
+    } catch (e) {
+      flash("error", "Error al guardar asistencia");
+    } finally {
+      setSavingAsistencia(false);
     }
   }
 
@@ -185,7 +403,21 @@ export default function ModulosView({
 
   if (viewingAlumnos) {
     return (
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="ts-viewing-alumnos-container" style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          .ts-viewing-alumnos-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+          }
+          @media (max-width: 1024px) {
+            .ts-viewing-alumnos-layout {
+              grid-template-columns: 1fr !important;
+            }
+          }
+          .ts-btn-back:hover { background: #f1f5f9!important; transform: translateY(-1px); }
+          .ts-btn-back:active { transform: translateY(0); }
+        `}} />
         {/* Header */}
         <div style={{ ...card, padding: "24px 28px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
@@ -216,54 +448,356 @@ export default function ModulosView({
           </div>
         </div>
 
-        {/* Listado */}
-        <div style={{ ...card, overflow: "hidden" }}>
-          {loadingAlumnos ? (
-            <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.5)" }}>Cargando alumnos...</div>
-          ) : alumnosMatriculados.length === 0 ? (
-            <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
-              <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
-              <p style={{ fontSize: 13 }}>No hay alumnos matriculados en este módulo</p>
-            </div>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="ts-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
-                    {["#", "DNI", "Apellidos y Nombres", "Celular", "Turno", "Fecha Matrícula", ""].map((h, i) => (
-                      <th key={i} style={{ padding: "12px 16px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", textAlign: h === "" ? "right" : "left" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {alumnosMatriculados.map((mat, idx) => (
-                    <tr key={mat.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)" }}>
-                      <td style={{ padding: "12px 16px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>{idx + 1}</td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
-                          {mat.alumnos?.dni}
-                        </span>
-                      </td>
-                      <td style={{ padding: "12px 16px" }}>
-                        <div style={{ fontWeight: 700, color: "#dbeafe" }}>{mat.alumnos?.apellidos}</div>
-                        <div style={{ color: "rgba(180,210,240,0.7)", fontSize: 12 }}>{mat.alumnos?.nombres}</div>
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)" }}>{mat.alumnos?.celular || "—"}</td>
-                      <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)", textTransform: "capitalize" }}>{mat.turno?.replace(/_/g, " ")}</td>
-                      <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>{mat.fecha_registro}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                          <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
-                          <ReporteAsistenciaBtn matriculaId={mat.id} />
-                        </div>
-                      </td>
+        {/* Layout de dos columnas */}
+        <div className="ts-viewing-alumnos-layout">
+          {/* Columna Izquierda: Listado de Alumnos */}
+          <div style={{ ...card, overflow: "hidden" }}>
+            {loadingAlumnos ? (
+              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.5)" }}>Cargando alumnos...</div>
+            ) : alumnosMatriculados.length === 0 ? (
+              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
+                <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
+                <p style={{ fontSize: 13 }}>No hay alumnos matriculados en este módulo</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table className="ts-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
+                      {["#", "DNI", "Apellidos y Nombres", "Celular", "Turno", "Fecha Matrícula", ""].map((h, i) => (
+                        <th key={i} style={{ padding: "12px 16px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", textAlign: h === "" ? "right" : "left" }}>{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {alumnosMatriculados.map((mat, idx) => (
+                      <tr key={mat.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)" }}>
+                        <td style={{ padding: "12px 16px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>{idx + 1}</td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
+                            {mat.alumnos?.dni}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <div style={{ fontWeight: 700, color: "#dbeafe" }}>{mat.alumnos?.apellidos}</div>
+                          <div style={{ color: "rgba(180,210,240,0.7)", fontSize: 12 }}>{mat.alumnos?.nombres}</div>
+                        </td>
+                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)" }}>{mat.alumnos?.celular || "—"}</td>
+                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)", textTransform: "capitalize" }}>{mat.turno?.replace(/_/g, " ")}</td>
+                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>{mat.fecha_registro}</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                            <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
+                            <ReporteAsistenciaBtn matriculaId={mat.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Columna Derecha: Cursos */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ ...card, padding: "20px 24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Cursos del Módulo</h3>
+                <button 
+                  style={{ ...btnS, padding: "5px 10px", fontSize: 11, height: 26, gap: 4 }}
+                  onClick={() => { resetCursoForm(); setShowCursoForm(true); setEditCursoTarget(null); }}
+                >
+                  <Plus size={12} /> Nuevo Curso
+                </button>
+              </div>
+
+              {loadingAlumnos ? (
+                <div style={{ textAlign: "center", padding: 20, color: "rgba(74,179,216,0.5)", fontSize: 12 }}>Cargando cursos...</div>
+              ) : cursosModulo.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "30px 10px", color: "rgba(74,179,216,0.4)", fontSize: 12 }}>
+                  No hay cursos creados en este módulo.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {cursosModulo.map(c => {
+                    const doc = c.docentes;
+                    return (
+                      <div key={c.id} style={{ padding: 12, background: "rgba(10,22,44,0.5)", border: "1px solid rgba(42,109,181,0.15)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <div style={{ fontWeight: 700, color: "#dbeafe", fontSize: 13, lineHeight: 1.3 }}>
+                            {c.nombre} <span style={{ fontSize: 10, color: "rgba(74,179,216,0.7)", fontWeight: 500 }}>({c.creditos || 1} CR)</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                            <button
+                              title="Editar Curso / Asignar Docente"
+                              style={{ background: "transparent", border: "none", color: "rgba(74,179,216,0.6)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
+                              onClick={() => openEditCurso(c)}
+                              onMouseEnter={e => e.currentTarget.style.color = "#4ab3d8"}
+                              onMouseLeave={e => e.currentTarget.style.color = "rgba(74,179,216,0.6)"}
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              title="Eliminar Curso"
+                              style={{ background: "transparent", border: "none", color: "rgba(248,113,113,0.5)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
+                              onClick={() => setDelCursoTarget(c)}
+                              onMouseEnter={e => e.currentTarget.style.color = "#f87171"}
+                              onMouseLeave={e => e.currentTarget.style.color = "rgba(248,113,113,0.5)"}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
+                          <div style={{ fontSize: 11, color: doc ? "#34d399" : "#fbbf24", fontWeight: doc ? 600 : 500 }}>
+                            {doc ? `Prof. ${doc.nombres.split(" ")[0]} ${doc.apellidos.split(" ")[0]}` : "Sin docente asignado"}
+                          </div>
+                          <button
+                            style={{
+                              background: "rgba(52,211,153,0.12)",
+                              border: "1px solid rgba(52,211,153,0.25)",
+                              color: "#34d399",
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}
+                            onClick={() => {
+                              setActiveAsistenciaCurso(c);
+                              setFechaAsistencia(new Date().toLocaleDateString('sv-SE'));
+                            }}
+                          >
+                            <Calendar size={11} /> Asistencia
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal: Crear / Editar Curso */}
+        <Modal
+          open={showCursoForm || !!editCursoTarget}
+          onClose={() => { setShowCursoForm(false); setEditCursoTarget(null); resetCursoForm(); }}
+          title={editCursoTarget ? "Editar Curso" : "Nuevo Curso"}
+          maxWidth="450px"
+        >
+          <form onSubmit={editCursoTarget ? handleEditCurso : handleCreateCurso} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={lbl}>Nombre del Curso *</label>
+              <input
+                type="text"
+                style={inp}
+                className="md-inp"
+                placeholder="Ej: Mantenimiento Preventivo"
+                value={cursoNombre}
+                onChange={e => setCursoNombre(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div>
+                <label style={lbl}>Créditos *</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  style={inp}
+                  className="md-inp"
+                  value={cursoCreditos}
+                  onChange={e => setCursoCreditos(Number(e.target.value))}
+                  required
+                />
+              </div>
+              <div>
+                <label style={lbl}>Orden de visualización</label>
+                <input
+                  type="number"
+                  min={1}
+                  style={inp}
+                  className="md-inp"
+                  value={cursoOrden}
+                  onChange={e => setCursoOrden(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={lbl}>Profesor Asignado (Maestro)</label>
+              <select
+                style={{ ...inp, cursor: "pointer" }}
+                className="md-inp"
+                value={cursoDocenteId}
+                onChange={e => setCursoDocenteId(e.target.value)}
+              >
+                <option value="">-- Sin asignar --</option>
+                {docentes.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.apellidos}, {d.nombres} {d.dni ? `(DNI: ${d.dni})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={lbl}>Descripción (opcional)</label>
+              <textarea
+                style={{ ...inp, height: 60, padding: "10px 14px", resize: "none" }}
+                className="md-inp"
+                placeholder="Breve descripción del curso..."
+                value={cursoDescripcion}
+                onChange={e => setCursoDescripcion(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 14 }}>
+              <button
+                type="button"
+                style={btnS}
+                onClick={() => { setShowCursoForm(false); setEditCursoTarget(null); resetCursoForm(); }}
+                disabled={submittingCurso}
+              >
+                Cancelar
+              </button>
+              <button type="submit" style={btnP} className="cr-btn-p" disabled={submittingCurso}>
+                {submittingCurso ? "Guardando..." : editCursoTarget ? "Actualizar" : "Crear"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Confirmar Eliminación del Curso */}
+        <ConfirmDialog
+          open={!!delCursoTarget}
+          onClose={() => setDelCursoTarget(null)}
+          onConfirm={handleDeleteCurso}
+          loading={submittingCurso}
+          title="¿Eliminar curso?"
+          description="Esta acción eliminará el curso y todas sus calificaciones/asistencias. No se puede deshacer."
+        >
+          {delCursoTarget && (
+            <div style={{ padding: "8px 12px", background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 8, marginTop: 8 }}>
+              <div style={{ fontWeight: 700, color: "#f87171", fontSize: 13 }}>
+                {delCursoTarget.nombre}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(248,113,113,0.7)", marginTop: 2 }}>
+                Módulo: {viewingAlumnos?.nombre}
+              </div>
             </div>
           )}
-        </div>
+        </ConfirmDialog>
+
+        {/* Modal: Registro de Asistencia del Curso */}
+        <Modal
+          open={!!activeAsistenciaCurso}
+          onClose={() => setActiveAsistenciaCurso(null)}
+          title={`Asistencia del Curso: ${activeAsistenciaCurso?.nombre || ""}`}
+          maxWidth="650px"
+        >
+          {activeAsistenciaCurso && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, background: "rgba(10,22,44,0.4)", padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(42,109,181,0.12)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.8)", textTransform: "uppercase" }}>Fecha:</span>
+                  <input
+                    type="date"
+                    style={{ ...inp, width: 150, height: 32, fontSize: 12 }}
+                    value={fechaAsistencia}
+                    onChange={e => setFechaAsistencia(e.target.value)}
+                  />
+                </div>
+                <span style={{ fontSize: 11, color: "rgba(120,160,210,0.6)" }}>
+                  Profesor: {activeAsistenciaCurso.docentes ? `${activeAsistenciaCurso.docentes.nombres} ${activeAsistenciaCurso.docentes.apellidos}` : "Sin docente asignado"}
+                </span>
+              </div>
+
+              <div style={{ overflowY: "auto", maxHeight: "40vh", border: "1px solid rgba(42,109,181,0.12)", borderRadius: 8 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+                  <thead>
+                    <tr style={{ background: "rgba(10,22,44,0.3)", borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
+                      <th style={{ padding: "8px 12px", color: "rgba(74,179,216,0.6)" }}>Alumno</th>
+                      <th style={{ padding: "8px 12px", color: "rgba(74,179,216,0.6)", textAlign: "center" }}>Asistencia</th>
+                      <th style={{ padding: "8px 12px", color: "rgba(74,179,216,0.6)" }}>Observación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alumnosMatriculados.map(m => (
+                      <tr key={m.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)" }}>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontWeight: 700, color: "#dbeafe" }}>
+                            {m.alumnos?.apellidos}, {m.alumnos?.nombres}
+                          </div>
+                          <div style={{ fontSize: 10, color: "rgba(120,160,210,0.5)" }}>
+                            DNI: {m.alumnos?.dni}
+                          </div>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <button
+                            type="button"
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              color: asistenciasMap[m.id] ? "#34d399" : "#f87171",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              backgroundColor: asistenciasMap[m.id] ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)"
+                            }}
+                            onClick={() => setAsistenciasMap(p => ({ ...p, [m.id]: !p[m.id] }))}
+                          >
+                            {asistenciasMap[m.id] ? "PRESENTE" : "FALTA"}
+                          </button>
+                        </td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <input
+                            type="text"
+                            placeholder="Ninguna..."
+                            style={{ ...inp, height: 28, fontSize: 11, padding: "0 8px" }}
+                            value={observacionesMap[m.id] || ""}
+                            onChange={e => setObservacionesMap(p => ({ ...p, [m.id]: e.target.value }))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 14 }}>
+                <button
+                  type="button"
+                  style={btnS}
+                  onClick={() => setActiveAsistenciaCurso(null)}
+                  disabled={savingAsistencia}
+                >
+                  Cerrar
+                </button>
+                <button
+                  type="button"
+                  style={btnP}
+                  className="cr-btn-p"
+                  onClick={handleSaveAsistencia}
+                  disabled={savingAsistencia}
+                >
+                  {savingAsistencia ? "Guardando..." : "Guardar Asistencia"}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     );
   }
