@@ -163,14 +163,80 @@ export default function IngresoView() {
         .pg-btn.ap{background:rgba(42,109,181,.25);border-color:rgba(74,179,216,.4);color:#dbeafe;font-weight:700;}
         input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.6);}
         .si:focus{border-color:rgba(74,179,216,.5)!important;}
+        
+        @media (max-width: 768px) {
+          .ts-ingreso-selected-card {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+          }
+          .ts-ingreso-selected-actions {
+            width: 100% !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .ts-ingreso-selected-actions button {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          
+          .ts-ingresos-filter-bar {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .ts-ingresos-filter-bar input {
+            width: 100% !important;
+          }
+          .ts-ingresos-date-range {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+            width: 100% !important;
+          }
+          .ts-ingresos-date-range input {
+            width: 100% !important;
+          }
+          .ts-ingresos-date-range span {
+            display: none !important;
+          }
+          .ts-ingresos-date-range::before {
+            content: "Filtrar por fechas:" !important;
+            font-size: 11px !important;
+            color: rgba(74,179,216,0.6) !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            margin-bottom: 2px !important;
+          }
+          .ts-ingresos-btn-export {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
+        
+        @media (max-width: 600px) {
+          .ts-ingreso-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+          .ts-ingreso-header-title {
+            width: 100% !important;
+          }
+          .ts-ingreso-header-badge {
+            width: 100% !important;
+            box-sizing: border-box !important;
+            justify-content: center !important;
+          }
+        }
       `}</style>
 
       <div style={{ display:"flex", flexDirection:"column", gap:20, fontFamily:"'DM Sans',sans-serif", animation:"fadeUp .35s both" }}>
 
         {/* ── REGISTRO ── */}
         <div style={{ ...card, padding:"24px 26px", position:"relative", zIndex:20 }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:18, flexWrap:"wrap" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div className="ts-ingreso-header" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:18, flexWrap:"wrap" }}>
+            <div className="ts-ingreso-header-title" style={{ display:"flex", alignItems:"center", gap:10 }}>
               <div style={{ width:34,height:34,borderRadius:9,background:"linear-gradient(135deg,#1a4a7a,#2a6db5)",display:"flex",alignItems:"center",justifyContent:"center" }}>
                 <Fingerprint size={17} style={{ color:"#4ab3d8" }} />
               </div>
@@ -180,7 +246,7 @@ export default function IngresoView() {
               </div>
             </div>
             {/* Total asistentes de hoy */}
-            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", borderRadius:10, background:"rgba(42,109,181,.1)", border:"1px solid rgba(74,179,216,.2)" }}>
+            <div className="ts-ingreso-header-badge" style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 16px", borderRadius:10, background:"rgba(42,109,181,.1)", border:"1px solid rgba(74,179,216,.2)" }}>
               <Users size={16} style={{ color:"#4ab3d8", flexShrink:0 }} />
               <div>
                 <div style={{ fontSize:10,fontWeight:700,color:"rgba(74,179,216,.5)",textTransform:"uppercase",letterSpacing:".08em" }}>Asistentes hoy</div>
@@ -233,28 +299,30 @@ export default function IngresoView() {
 
           {/* Alumno seleccionado */}
           {selected && (
-            <div style={{ marginTop:14, padding:"14px 16px", borderRadius:12, background:"rgba(42,109,181,.1)", border:"1px solid rgba(74,179,216,.25)", display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", animation:"alertIn .25s both" }}>
-              <div style={{ width:42,height:42,borderRadius:10,background:"linear-gradient(135deg,#1a4a7a,#2a6db5)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
-                <User size={18} style={{ color:"#4ab3d8" }} />
-              </div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ fontSize:14,fontWeight:700,color:"#dbeafe" }}>{selected.nombres} {selected.apellidos}</div>
-                <div style={{ fontSize:12,color:"rgba(74,179,216,.6)",marginTop:4,display:"flex",alignItems:"center",gap:6 }}>
-                  DNI: <b style={{ color:"#4ab3d8",letterSpacing:".08em" }}>{selected.dni}</b> 
-                  <span style={carreraBadgeStyle(selected.carrera)}>{selected.carrera}</span>
+            <div className="ts-view-selected-container" style={{ marginTop: 14 }}>
+              <div className="ts-ingreso-selected-card" style={{ padding:"14px 16px", borderRadius:12, background:"rgba(42,109,181,.1)", border:"1px solid rgba(74,179,216,.25)", display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", animation:"alertIn .25s both" }}>
+                <div style={{ width:42,height:42,borderRadius:10,background:"linear-gradient(135deg,#1a4a7a,#2a6db5)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                  <User size={18} style={{ color:"#4ab3d8" }} />
                 </div>
-              </div>
-              <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                <button onClick={() => { setSelected(null); setQuery(""); }} style={{ padding:"8px 14px", borderRadius:9, border:"1px solid rgba(42,109,181,.3)", background:"transparent", color:"rgba(74,179,216,.6)", fontSize:12, cursor:"pointer" }}>
-                  Cambiar
-                </button>
-                <button
-                  onClick={registrar}
-                  disabled={registering}
-                  style={{ padding:"8px 20px", borderRadius:9, border:"none", background: registering?"rgba(42,109,181,.2)":"linear-gradient(135deg,#1a4a7a,#2a6db5)", color: registering?"rgba(180,210,240,.4)":"#dbeafe", fontSize:13, fontWeight:700, cursor:registering?"not-allowed":"pointer", display:"flex",alignItems:"center",gap:7, boxShadow:"0 3px 14px rgba(42,109,181,.4)", transition:"background .2s" }}
-                >
-                  {registering ? <><RefreshCw size={14} style={{ animation:"spin 1s linear infinite" }}/> Registrando…</> : <><UserCheck size={14}/> Registrar Asistencia</>}
-                </button>
+                <div style={{ flex:1,minWidth:0 }}>
+                  <div style={{ fontSize:14,fontWeight:700,color:"#dbeafe" }}>{selected.nombres} {selected.apellidos}</div>
+                  <div style={{ fontSize:12,color:"rgba(74,179,216,.6)",marginTop:4,display:"flex",alignItems:"center",gap:6 }}>
+                    DNI: <b style={{ color:"#4ab3d8",letterSpacing:".08em" }}>{selected.dni}</b> 
+                    <span style={carreraBadgeStyle(selected.carrera)}>{selected.carrera}</span>
+                  </div>
+                </div>
+                <div className="ts-ingreso-selected-actions" style={{ display:"flex", gap:8, flexShrink:0 }}>
+                  <button onClick={() => { setSelected(null); setQuery(""); }} style={{ padding:"8px 14px", borderRadius:9, border:"1px solid rgba(42,109,181,.3)", background:"transparent", color:"rgba(74,179,216,.6)", fontSize:12, cursor:"pointer" }}>
+                    Cambiar
+                  </button>
+                  <button
+                    onClick={registrar}
+                    disabled={registering}
+                    style={{ padding:"8px 20px", borderRadius:9, border:"none", background: registering?"rgba(42,109,181,.2)":"linear-gradient(135deg,#1a4a7a,#2a6db5)", color: registering?"rgba(180,210,240,.4)":"#dbeafe", fontSize:13, fontWeight:700, cursor:registering?"not-allowed":"pointer", display:"flex",alignItems:"center",gap:7, boxShadow:"0 3px 14px rgba(42,109,181,.4)", transition:"background .2s" }}
+                  >
+                    {registering ? <><RefreshCw size={14} style={{ animation:"spin 1s linear infinite" }}/> Registrando…</> : <><UserCheck size={14}/> Registrar Asistencia</>}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -289,7 +357,7 @@ export default function IngresoView() {
         {/* ── REPORTES ── */}
         <div style={{ ...card }}>
           {/* cabecera filtros */}
-          <div style={{ padding:"13px 18px", borderBottom:"1px solid rgba(42,109,181,.14)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <div className="ts-ingresos-filter-bar" style={{ padding:"13px 18px", borderBottom:"1px solid rgba(42,109,181,.14)", display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             <div style={{ display:"flex",alignItems:"center",gap:7,flex:1,minWidth:120 }}>
               <Search size={14} style={{ color:"rgba(74,179,216,.55)" }}/>
               <span style={{ fontSize:13,fontWeight:700,color:"#dbeafe" }}>Reporte de Ingresos</span>
@@ -301,7 +369,7 @@ export default function IngresoView() {
             <input className="si" value={fNombre} onChange={e=>setFNombre(e.target.value)} placeholder="Nombre o apellido…" style={{ ...inp, width:170, padding:"7px 11px", fontSize:12 }} />
 
             {/* Rango de fechas */}
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <div className="ts-ingresos-date-range" style={{ display:"flex", alignItems:"center", gap:6 }}>
               <span style={{ fontSize:11, color:"rgba(74,179,216,.5)", whiteSpace:"nowrap" }}>Desde</span>
               <input type="date" className="si" value={fInicio} onChange={e=>setFInicio(e.target.value)} style={{ ...inp, width:140, padding:"7px 10px", fontSize:12, colorScheme:"dark" }} />
               <span style={{ fontSize:11, color:"rgba(74,179,216,.5)", whiteSpace:"nowrap" }}>Hasta</span>
@@ -316,7 +384,7 @@ export default function IngresoView() {
             )}
 
             {/* Exportar */}
-            <button onClick={exportar} disabled={total===0} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:"linear-gradient(135deg,rgba(6,78,59,.7),rgba(52,211,153,.25))",border:"1px solid rgba(52,211,153,.3)",color:"#6ee7b7",fontSize:12,fontWeight:700,cursor:total===0?"not-allowed":"pointer",opacity:total===0?.45:1,whiteSpace:"nowrap" }}>
+            <button className="ts-ingresos-btn-export" onClick={exportar} disabled={total===0} style={{ display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:8,background:"linear-gradient(135deg,rgba(6,78,59,.7),rgba(52,211,153,.25))",border:"1px solid rgba(52,211,153,.3)",color:"#6ee7b7",fontSize:12,fontWeight:700,cursor:total===0?"not-allowed":"pointer",opacity:total===0?.45:1,whiteSpace:"nowrap" }}>
               <Download size={13}/> Exportar Excel
             </button>
           </div>
