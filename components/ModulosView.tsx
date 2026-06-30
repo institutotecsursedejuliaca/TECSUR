@@ -45,21 +45,24 @@ const MODALIDAD_TEXT: Record<string, string> = {
 
 const emptyForm = {
   nombre: "", fecha_inicio: "", fecha_fin: "", modalidad: "presencial" as Modulo["modalidad"],
-  duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: "", docente_id: ""
+  duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: ""
 };
 
-export default function ModulosView({ 
-  onNavigate, 
-  carreraId, 
-  onBack 
-}: { 
+export default function ModulosView({
+  onNavigate,
+  carreraId,
+  carreraNombre,
+  onBack
+}: {
   onNavigate?: (view: string) => void;
   carreraId?: string;
+  carreraNombre?: string;
   onBack?: () => void;
 }) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const [docentes, setDocentes] = useState<any[]>([]);
+
+  const currentCarreraNombre = carreraNombre || carreras.find(c => c.id === carreraId)?.nombre || "";
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Modulo | null>(null);
@@ -76,7 +79,7 @@ export default function ModulosView({
   const [alumnosMatriculados, setAlumnosMatriculados] = useState<any[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
 
-  useEffect(() => { loadCarreras(); loadModulos(); loadDocentes(); }, [carreraId]);
+  useEffect(() => { loadCarreras(); loadModulos(); }, [carreraId]);
 
   async function loadModulos() {
     setLoading(true);
@@ -93,30 +96,21 @@ export default function ModulosView({
     setCarreras(Array.isArray(data) ? data : []);
   }
 
-  async function loadDocentes() {
-    try {
-      const res = await fetch("/api/docentes");
-      const data = await res.json();
-      setDocentes(Array.isArray(data) ? data : []);
-    } catch (e) {}
-  }
-
   function flash(type: "success" | "error", text: string) { setMsg({ open: true, type, text }); }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault(); setSubmitting(true);
     const payload = {
-        nombre: form.nombre,
-        fecha_inicio: form.fecha_inicio,
-        fecha_fin: form.fecha_fin,
-        modalidad: form.modalidad,
-        duracion: Number(form.duracion),
-        carrera_id: form.carrera_id || null,
-        profesor: form.profesor || null,
-        local: form.local || null,
-        aula: form.aula || null,
-        horario: form.horario || null,
-        docente_id: form.docente_id || null,
+      nombre: form.nombre,
+      fecha_inicio: form.fecha_inicio,
+      fecha_fin: form.fecha_fin,
+      modalidad: form.modalidad,
+      duracion: Number(form.duracion),
+      carrera_id: form.carrera_id || null,
+      profesor: form.profesor || null,
+      local: form.local || null,
+      aula: form.aula || null,
+      horario: form.horario || null,
     };
     const res = await fetch("/api/modulos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json(); setSubmitting(false);
@@ -129,17 +123,16 @@ export default function ModulosView({
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault(); if (!editTarget) return; setSubmitting(true);
     const payload = {
-        nombre: form.nombre,
-        fecha_inicio: form.fecha_inicio,
-        fecha_fin: form.fecha_fin,
-        modalidad: form.modalidad,
-        duracion: Number(form.duracion),
-        carrera_id: form.carrera_id || null,
-        profesor: form.profesor || null,
-        local: form.local || null,
-        aula: form.aula || null,
-        horario: form.horario || null,
-        docente_id: form.docente_id || null,
+      nombre: form.nombre,
+      fecha_inicio: form.fecha_inicio,
+      fecha_fin: form.fecha_fin,
+      modalidad: form.modalidad,
+      duracion: Number(form.duracion),
+      carrera_id: form.carrera_id || null,
+      profesor: form.profesor || null,
+      local: form.local || null,
+      aula: form.aula || null,
+      horario: form.horario || null,
     };
     const res = await fetch(`/api/modulos/${editTarget.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json(); setSubmitting(false);
@@ -159,7 +152,7 @@ export default function ModulosView({
 
   function openEdit(m: Modulo) {
     setEditTarget(m);
-    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion, carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "", docente_id: m.docente_id ?? "" });
+    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion, carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "" });
     setShowForm(false);
   }
 
@@ -198,7 +191,7 @@ export default function ModulosView({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                <button 
+                <button
                   onClick={() => setViewingAlumnos(null)}
                   className="ts-btn-back"
                   style={{ background: "#ffffff", border: "none", borderRadius: 10, padding: "8px 14px", color: "#0f172a", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, transition: "background .2s, transform .15s" }}
@@ -209,7 +202,7 @@ export default function ModulosView({
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Alumnos Matriculados</h2>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, gap: 16 }}>
-                <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>Módulo: <strong style={{color: "#4ab3d8"}}>{viewingAlumnos.nombre}</strong></p>
+                <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>Módulo: <strong style={{ color: "#4ab3d8" }}>{viewingAlumnos.nombre}</strong></p>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <ReporteModuloBtn moduloId={viewingAlumnos.id} text="Registro de Notas" style={{ height: 28 }} />
                   {onNavigate && (
@@ -260,7 +253,7 @@ export default function ModulosView({
                       <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>{mat.fecha_registro}</td>
                       <td style={{ padding: "12px 16px", textAlign: "right" }}>
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                          <ReporteMatriculaBtn matriculaId={mat.id} />
+                          <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
                           <ReporteAsistenciaBtn matriculaId={mat.id} />
                         </div>
                       </td>
@@ -297,7 +290,7 @@ export default function ModulosView({
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
               {onBack && (
-                <button 
+                <button
                   onClick={onBack}
                   className="ts-btn-back"
                   style={{ background: "#ffffff", border: "none", borderRadius: 10, padding: "8px 14px", color: "#0f172a", fontSize: 13, fontWeight: 600, fontFamily: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, transition: "background .2s, transform .15s" }}
@@ -306,9 +299,15 @@ export default function ModulosView({
                   <span>Regresar</span>
                 </button>
               )}
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Gestión de Módulos</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", margin: 0 }}>
+                {currentCarreraNombre ? `— ${currentCarreraNombre}` : ""}
+              </h2>
             </div>
-            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", marginTop: 4 }}>Módulos académicos del instituto con profesor y aula</p>
+            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", marginTop: 4 }}>
+              {currentCarreraNombre
+                ? `Módulos académicos de la carrera ${currentCarreraNombre} con profesor y aula`
+                : "Módulos académicos del instituto con profesor y aula"}
+            </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {/* Filtro por estado del módulo */}
@@ -401,31 +400,7 @@ export default function ModulosView({
                 <option value="Domingos 2:00 PM - 7:00 PM" />
               </datalist>
             </div>
-            <div>
-              <label style={lbl}>Docente Asignado</label>
-              <div style={{ position: "relative" }}>
-                <select 
-                  className="md-inp" 
-                  style={{ ...inp, paddingRight: 32, cursor: "pointer" }} 
-                  value={form.docente_id} 
-                  onChange={e => {
-                    const docId = e.target.value;
-                    const selectedDoc = docentes.find(d => d.id === docId);
-                    setForm(p => ({ 
-                      ...p, 
-                      docente_id: docId,
-                      profesor: selectedDoc ? `${selectedDoc.nombres} ${selectedDoc.apellidos}` : "" 
-                    }));
-                  }}
-                >
-                  <option value="">Sin docente</option>
-                  {docentes.map(d => (
-                    <option key={d.id} value={d.id}>{d.apellidos}, {d.nombres}</option>
-                  ))}
-                </select>
-                <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
-              </div>
-            </div>
+            {/* El docente ahora se asigna por curso individual, no por módulo */}
 
             <div>
               <label style={lbl}>Local</label>

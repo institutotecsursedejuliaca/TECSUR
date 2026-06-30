@@ -26,6 +26,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
 import ReporteAsistenciaBtn from "./ReporteAsistenciaBtn";
 import ReporteMatriculaBtn from "./ReporteMatriculaBtn";
+import ReporteFichaBtn from "./ReporteFichaBtn";
 
 // ─────────────────────────────────────────────────────────────
 // TIPOS
@@ -61,6 +62,7 @@ interface Modulo {
   horario?: string | null;
   carrera_id?: string | null;
   carreras?: { id: string; nombre: string } | null;
+  fecha_fin: string;
 }
 
 interface PaginatedResponse {
@@ -629,6 +631,7 @@ export default function AlumnosView() {
                             <BookOpen size={12} />
                             Matricular
                           </button>
+                          <ReporteFichaBtn alumnoId={a.id} label="Ficha" style={{ padding: "5px 10px", fontSize: 11, height: 28, boxSizing: "border-box" }} />
                           <div style={{ display: "flex", gap: 4 }}>
                             <button className="ts-row-action" style={{ color: "rgba(74,179,216,0.6)" }} title="Ver detalle" onClick={() => { setVerTarget(a); setModalVer(true); }}>
                               <Eye size={13} />
@@ -858,7 +861,7 @@ export default function AlumnosView() {
               >
                 <option value="">— Seleccionar módulo —</option>
                 {modulos
-                  .filter(m => !matriculaTarget || m.carreras?.nombre === matriculaTarget.carrera)
+                  .filter(m => (!matriculaTarget || m.carreras?.nombre === matriculaTarget.carrera) && new Date().toLocaleDateString('sv-SE') <= m.fecha_fin)
                   .map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.nombre} {m.horario ? `(${m.horario})` : ""}
@@ -1011,7 +1014,7 @@ export default function AlumnosView() {
                         <span>{mat.modulos?.fecha_inicio} al {mat.modulos?.fecha_fin}</span>
                       </div>
                       <div style={{ marginTop: 4, display: "flex", gap: 6 }}>
-                        <ReporteMatriculaBtn matriculaId={mat.id} />
+                        <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
                         <ReporteAsistenciaBtn matriculaId={mat.id} />
                       </div>
                     </div>

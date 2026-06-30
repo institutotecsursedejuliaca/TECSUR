@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, descripcion, orden, creditos } = body;
+  const { nombre, descripcion, orden, creditos, docente_id } = body;
 
   if (!nombre?.trim()) {
     return Response.json({ error: "El nombre es requerido" }, { status: 400 });
@@ -29,10 +29,11 @@ export async function PUT(request: NextRequest, { params }: Params) {
       nombre: nombre.trim(), 
       descripcion: descripcion || null, 
       orden: orden ?? 1,
-      creditos: creditos !== undefined ? Number(creditos) : undefined
+      creditos: creditos !== undefined ? Number(creditos) : undefined,
+      docente_id: docente_id !== undefined ? (docente_id || null) : undefined
     })
     .eq("id", id)
-    .select()
+    .select("*, docentes(id, nombres, apellidos)")
     .single();
 
   if (error) return Response.json({ error: error.message }, { status: 500 });

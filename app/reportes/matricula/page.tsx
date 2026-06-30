@@ -23,6 +23,23 @@ export default async function ReporteMatriculaPage({ searchParams }: { searchPar
     return <div style={{ padding: 40, fontFamily: "sans-serif" }}>Error: No se encontró la matrícula o fue eliminada.</div>;
   }
 
+  // Cargar cursos del módulo para obtener los nombres de los docentes
+  const { data: cursos } = await supabase
+    .from("cursos")
+    .select("id, nombre, docente_id, docentes(nombres, apellidos)")
+    .eq("modulo_id", matricula.modulo_id);
+
+  const uniqueTeachers = Array.from(
+    new Set(
+      (cursos || []).map(c => {
+        const doc = (c as any).docentes;
+        const d = Array.isArray(doc) ? doc[0] : doc;
+        return d ? `${d.nombres} ${d.apellidos}`.trim() : null;
+      }).filter(Boolean)
+    )
+  );
+  const profesorStr = uniqueTeachers.length > 0 ? uniqueTeachers.join(", ") : (matricula.modulos.profesor || "Por asignar");
+
   const formatTurno = (t: string) => t ? t.replace(/_/g, " ") : "";
 
   return (
@@ -128,7 +145,7 @@ export default async function ReporteMatriculaPage({ searchParams }: { searchPar
               </tr>
               <tr>
                 <td className="label-td">Docente / Instructor</td>
-                <td>{matricula.modulos.profesor || "Por asignar"}</td>
+                <td>{profesorStr}</td>
               </tr>
               <tr>
                 <td className="label-td">Modalidad</td>

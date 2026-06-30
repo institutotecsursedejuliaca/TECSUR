@@ -1,10 +1,11 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Fingerprint, Search, Download, UserCheck, AlertCircle, CheckCircle, Clock, Users, ChevronLeft, ChevronRight, RefreshCw, X, User } from "lucide-react";
+import { Fingerprint, Search, Download, UserCheck, AlertCircle, CheckCircle, Clock, Users, ChevronLeft, ChevronRight, RefreshCw, X, User, Trash2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { Ingreso, Alumno } from "@/lib/supabase";
 import { carreraBadgeStyle } from "@/lib/carreraColors";
 import AlertDialog from "./AlertDialog";
+import ConfirmDialog from "./ConfirmDialog";
 
 const card: React.CSSProperties = { background:"rgba(8,16,34,0.85)", border:"1px solid rgba(42,109,181,0.18)", borderRadius:14, backdropFilter:"blur(12px)" };
 const inp: React.CSSProperties = { width:"100%", padding:"9px 13px", background:"rgba(42,109,181,0.08)", border:"1px solid rgba(42,109,181,0.22)", borderRadius:10, color:"#dbeafe", fontSize:13, outline:"none", fontFamily:"inherit", transition:"border-color .2s" };
@@ -22,6 +23,10 @@ export default function IngresoView() {
   const [registering, setRegistering] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" | "info" }>({ open: false, message: "", type: "info" });
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // ── Eliminación de ingreso ──
+  const [deleteTarget, setDeleteTarget] = useState<Ingreso | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Reportes ──
   const today = new Date().toISOString().slice(0,10);
@@ -92,6 +97,26 @@ export default function IngresoView() {
       }
     } catch { setAlertInfo({ open: true, type:"error", message:"Error de conexión." }); }
     finally { setRegistering(false); searchRef.current?.focus(); }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/ingresos?id=${deleteTarget.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (res.ok) {
+        setAlertInfo({ open: true, type: "success", message: "Ingreso eliminado correctamente." });
+        setDeleteTarget(null);
+        loadIngresos(page, fDni, fNombre, fInicio, fFin);
+      } else {
+        setAlertInfo({ open: true, type: "error", message: json.error || "Error al eliminar el ingreso." });
+      }
+    } catch {
+      setAlertInfo({ open: true, type: "error", message: "Error de conexión." });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   // ── exportar ──
@@ -241,6 +266,24 @@ export default function IngresoView() {
             message={alertInfo.message}
             type={alertInfo.type}
           />
+
+          {/* Confirmar eliminación */}
+          <ConfirmDialog
+            open={!!deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+            onConfirm={handleDelete}
+            loading={deleting}
+            title="¿Eliminar registro de ingreso?"
+            description="Esta acción eliminará permanentemente este registro de asistencia. No se puede deshacer."
+          >
+            {deleteTarget && (
+              <p style={{ fontSize: 13, color: "rgba(120,160,210,0.75)", margin: 0 }}>
+                Alumno: <strong style={{ color: "#dbeafe" }}>{deleteTarget.alumnos ? `${deleteTarget.alumnos.nombres} ${deleteTarget.alumnos.apellidos}` : "—"}</strong>
+                <br />
+                Fecha: <span style={{ color: "#4ab3d8" }}>{fmtFecha(deleteTarget.fecha_ingreso)}</span> a las <span style={{ color: "#4ab3d8" }}>{hora12(deleteTarget.hora_ingreso)}</span>
+              </p>
+            )}
+          </ConfirmDialog>
         </div>
 
         {/* ── REPORTES ── */}
@@ -286,16 +329,17 @@ export default function IngresoView() {
                   <th>#</th><th>DNI</th><th>Nombre Completo</th><th>Carrera</th>
                   <th><Clock size={10} style={{ display:"inline",verticalAlign:"middle",marginRight:3 }}/>Hora</th>
                   <th><Clock size={10} style={{ display:"inline",verticalAlign:"middle",marginRight:3, opacity:.5 }}/>Fecha</th>
+                  <th style={{ textAlign:"right" }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} style={{ textAlign:"center",padding:"40px 0",color:"rgba(74,179,216,.45)" }}>
+                  <tr><td colSpan={7} style={{ textAlign:"center",padding:"40px 0",color:"rgba(74,179,216,.45)" }}>
                     <RefreshCw size={20} style={{ animation:"spin 1s linear infinite",display:"inline-block" }}/>
                     <div style={{ marginTop:8,fontSize:12 }}>Cargando…</div>
                   </td></tr>
                 ) : rows.length===0 ? (
-                  <tr><td colSpan={6} style={{ textAlign:"center",padding:"46px 0",color:"rgba(74,179,216,.28)",fontSize:13 }}>
+                  <tr><td colSpan={7} style={{ textAlign:"center",padding:"46px 0",color:"rgba(74,179,216,.28)",fontSize:13 }}>
                     No hay registros para los filtros aplicados
                   </td></tr>
                 ) : rows.map((r,i)=>(
@@ -311,6 +355,28 @@ export default function IngresoView() {
                       </div>
                     </td>
                     <td style={{ color:"rgba(180,210,240,.6)",fontSize:12 }}>{fmtFecha(r.fecha_ingreso)}</td>
+                    <td style={{ textAlign:"right" }}>
+                      <button
+                        onClick={() => setDeleteTarget(r)}
+                        className="ts-row-action delete"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "rgba(248,113,113,0.5)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "7px",
+                          width: "28px",
+                          height: "28px",
+                          transition: "all .18s"
+                        }}
+                        title="Eliminar ingreso"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

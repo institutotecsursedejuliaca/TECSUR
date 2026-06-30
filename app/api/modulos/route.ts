@@ -7,17 +7,27 @@ export async function GET(request: NextRequest) {
   const carreraId = searchParams.get("carrera_id");
   const docenteId = searchParams.get("docente_id");
 
-  let query = supabase
-    .from("modulos")
-    .select(`
+  let selectQuery = `
+    *,
+    carreras (id, nombre),
+    cursos (id, nombre, orden)
+  `;
+
+  if (docenteId) {
+    selectQuery = `
       *,
       carreras (id, nombre),
-      cursos (id, nombre, orden)
-    `)
+      cursos!inner (id, nombre, orden, docente_id)
+    `;
+  }
+
+  let query = supabase
+    .from("modulos")
+    .select(selectQuery)
     .order("fecha_inicio", { ascending: false });
 
   if (carreraId) query = query.eq("carrera_id", carreraId);
-  if (docenteId) query = query.eq("docente_id", docenteId);
+  if (docenteId) query = query.eq("cursos.docente_id", docenteId);
 
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -29,7 +39,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     nombre, fecha_inicio, fecha_fin, modalidad, duracion,
-    carrera_id, profesor, local, aula, horario, docente_id
+    carrera_id, profesor, local, aula, horario
   } = body;
 
   if (!nombre || !fecha_inicio || !fecha_fin || !modalidad || !duracion) {
@@ -54,7 +64,6 @@ export async function POST(request: NextRequest) {
       local: local || null,
       aula: aula || null,
       horario: horario || null,
-      docente_id: docente_id || null,
     }])
     .select(`*, carreras(id, nombre)`)
     .single();

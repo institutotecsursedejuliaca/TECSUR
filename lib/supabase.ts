@@ -20,6 +20,16 @@ export interface Carrera {
   total_matriculas?: number
 }
 
+export interface Docente {
+  id: string
+  nombres: string
+  apellidos: string
+  email: string
+  dni?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Alumno {
   id: string
   dni: string
@@ -77,10 +87,12 @@ export interface Curso {
   descripcion?: string | null
   orden: number
   creditos?: number
+  docente_id?: string | null
   created_at?: string
   created_by?: string | null
   // relations
   modulos?: Pick<Modulo, 'id' | 'nombre'> | null
+  docentes?: Docente | null
 }
 
 export interface Matricula {

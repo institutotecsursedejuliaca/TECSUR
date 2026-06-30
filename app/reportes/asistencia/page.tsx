@@ -23,6 +23,23 @@ export default async function ReporteAsistenciaPage({ searchParams }: { searchPa
     return <div style={{ padding: 40, fontFamily: "sans-serif" }}>Error: No se encontró la matrícula o fue eliminada.</div>;
   }
 
+  // Cargar cursos del módulo para obtener los nombres de los docentes
+  const { data: cursos } = await supabase
+    .from("cursos")
+    .select("id, nombre, docente_id, docentes(nombres, apellidos)")
+    .eq("modulo_id", matricula.modulo_id);
+
+  const uniqueTeachers = Array.from(
+    new Set(
+      (cursos || []).map(c => {
+        const doc = (c as any).docentes;
+        const d = Array.isArray(doc) ? doc[0] : doc;
+        return d ? `${d.nombres} ${d.apellidos}`.trim() : null;
+      }).filter(Boolean)
+    )
+  );
+  const profesorStr = uniqueTeachers.length > 0 ? uniqueTeachers.join(", ") : (matricula.modulos.profesor || "No asignado");
+
   // Cargar TODAS las fechas en las que se tomó asistencia para este módulo
   const { data: fechasModulo } = await supabase
     .from("asistencias")
@@ -149,7 +166,7 @@ export default async function ReporteAsistenciaPage({ searchParams }: { searchPa
               </div>
               <div>
                 <div className="info-label">Docente</div>
-                <div className="info-value">{matricula.modulos.profesor || "No asignado"}</div>
+                <div className="info-value">{profesorStr}</div>
               </div>
               <div>
                 <div className="info-label">Modalidad</div>
@@ -237,7 +254,7 @@ export default async function ReporteAsistenciaPage({ searchParams }: { searchPa
           <div style={{ textAlign: "center" }}>
             <div style={{ width: 200, borderTop: "1px solid #9ca3af", margin: "0 auto 10px" }}></div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "#4b5563" }}>Firma del Docente</div>
-            <div style={{ fontSize: 11, color: "#6b7280" }}>{matricula.modulos.profesor || "__________________"}</div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>{profesorStr}</div>
           </div>
           <div style={{ textAlign: "center" }}>
             <div style={{ width: 200, borderTop: "1px solid #9ca3af", margin: "0 auto 10px" }}></div>

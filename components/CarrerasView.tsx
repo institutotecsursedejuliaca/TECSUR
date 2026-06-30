@@ -363,6 +363,7 @@ export default function CarrerasView() {
       {viewingModulos && (
         <ModulosView
           carreraId={viewingModulos.id}
+          carreraNombre={viewingModulos.nombre}
           onBack={() => setViewingModulos(null)}
         />
       )}

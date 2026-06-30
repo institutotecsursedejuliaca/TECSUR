@@ -34,11 +34,10 @@ export default async function ReporteModuloPage({
   const listaMatriculas = matriculas || [];
   const carreraStr = listaMatriculas.length > 0 ? (listaMatriculas[0].alumnos as any).carrera : "NO ASIGNADA";
   const turnoStr = listaMatriculas.length > 0 ? listaMatriculas[0].turno.replace(/_/g, " ") : "NO ASIGNADO";
-
   // 3. Obtener cursos del módulo
   const { data: cursos } = await supabase
     .from("cursos")
-    .select("id, nombre, creditos")
+    .select("id, nombre, creditos, docente_id, docentes(nombres, apellidos)")
     .eq("modulo_id", moduloId)
     .order("orden", { ascending: true });
 
@@ -104,6 +103,19 @@ export default async function ReporteModuloPage({
     fechasValidas = Array.from(fechasSet).sort();
   }
 
+  const uniqueTeachers = Array.from(
+    new Set(
+      listaCursos
+        .map(c => {
+          const doc = (c as any).docentes;
+          const d = Array.isArray(doc) ? doc[0] : doc;
+          return d ? `${d.nombres} ${d.apellidos}`.trim() : null;
+        })
+        .filter(Boolean)
+    )
+  );
+  const profesoresStr = uniqueTeachers.length > 0 ? uniqueTeachers.join(", ") : (modulo.profesor || "POR ASIGNAR");
+
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
@@ -136,7 +148,7 @@ export default async function ReporteModuloPage({
           .page-container { margin: 0; max-width: 100%; }
         }
       `}} />
-
+ 
       <div className="full-screen-wrapper">
         <div className="page-container">
           <div className="header-logo-container">
@@ -146,7 +158,7 @@ export default async function ReporteModuloPage({
           <div className="header-title">REGISTRO DE NOTAS {new Date().getFullYear()}</div>
           <div style={{ width: 150, textAlign: "right" }}></div>
         </div>
-
+ 
         <table className="main-table" style={{ marginBottom: 0, borderBottom: "none" }}>
           <tbody className="header-section">
             <tr>
@@ -157,7 +169,7 @@ export default async function ReporteModuloPage({
             <tr>
               <td className="bg-yellow" style={{ width: "25%" }}>MÁQUINA: {modulo.nombre}</td>
               <td className="bg-blue" style={{ width: "15%" }}>PROFESOR:</td>
-              <td className="bg-blue" style={{ width: "30%", background: "#dbeef3", fontWeight: "normal" }}>{modulo.profesor || "POR ASIGNAR"}</td>
+              <td className="bg-blue" style={{ width: "30%", background: "#dbeef3", fontWeight: "normal" }}>{profesoresStr}</td>
               <td className="bg-blue" style={{ width: "15%" }}>FECHA DE INICIO:</td>
               <td style={{ width: "15%", fontWeight: "bold", fontStyle: "italic", textAlign: "right", paddingRight: 10 }}>{modulo.fecha_inicio}</td>
             </tr>

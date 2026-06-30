@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
   return Response.json({ success: true, message: "Docente eliminado correctamente" });
 }
 
-// PUT /api/docentes — Actualizar o restablecer contraseña
+// PUT /api/docentes — Actualizar o restablecer contraseña / dar de baja
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -185,7 +185,75 @@ export async function PUT(request: NextRequest) {
       return Response.json({ success: true, message: "Contraseña restablecida correctamente al DNI del docente." });
     }
 
-    return Response.json({ error: "Acción no soportada" }, { status: 400 });
+    if (action === "toggle-active") {
+      const { active } = body;
+      if (active === undefined) {
+        return Response.json({ error: "El estado 'active' es requerido" }, { status: 400 });
+      }
+
+      // ban_duration: '876600h' to ban, 'none' to unban
+      const banDuration = active ? "none" : "876600h";
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        ban_duration: banDuration
+      });
+
+      if (authError) {
+        return Response.json({ error: authError.message }, { status: 400 });
+      }
+
+      // Update the public.docentes table
+      const { data: updatedDoc, error: dbError } = await supabaseAdmin
+        .from("docentes")
+        .update({ activo: active })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (dbError) {
+        return Response.json({ 
+          success: true, 
+          message: `Cuenta de docente ${active ? "activada" : "dada de baja"} en autenticación. Nota: Si no se actualizó el campo de base de datos, ejecuta el script db_migration_docentes_activo.sql en el SQL Editor de Supabase.`,
+          activo: active,
+          id
+        });
+      }
+
+      return Response.json(updatedDoc);
+    }
+
+    // Default action: standard update (nombres, apellidos, email, dni)
+    const { nombres, apellidos, email, dni } = body;
+    if (!nombres || !apellidos || !email) {
+      return Response.json({ error: "Nombres, apellidos y email son requeridos para actualizar" }, { status: 400 });
+    }
+
+    // Update email in Auth if changed
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      email: email.trim().toLowerCase()
+    });
+
+    if (authError) {
+      return Response.json({ error: `Error actualizando email en autenticación: ${authError.message}` }, { status: 400 });
+    }
+
+    // Update public table
+    const { data: updatedDoc, error: dbError } = await supabaseAdmin
+      .from("docentes")
+      .update({
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
+        email: email.trim().toLowerCase(),
+        dni: dni ? dni.trim() : null
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (dbError) {
+      return Response.json({ error: `Error actualizando docente en base de datos: ${dbError.message}` }, { status: 500 });
+    }
+
+    return Response.json(updatedDoc);
   } catch (e: any) {
     return Response.json({ error: e.message || "Error interno del servidor" }, { status: 500 });
   }

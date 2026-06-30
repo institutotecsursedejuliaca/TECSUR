@@ -1,12 +1,25 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, Calendar, Save, Plus, CheckSquare, Square, Layers, User, Edit } from "lucide-react";
+import { ChevronLeft, Calendar, Save, Plus, CheckSquare, Square, Layers, User, Edit, Search } from "lucide-react";
 import AlertDialog from "./AlertDialog";
 import Modal from "./Modal";
 import ReporteModuloBtn from "./ReporteModuloBtn";
+import { carreraBadgeStyle } from "@/lib/carreraColors";
 
-interface Modulo { id: string; nombre: string; fecha_inicio: string; fecha_fin: string; modalidad: string; duracion: number; profesor?: string; local?: string; aula?: string; }
+interface Modulo {
+  id: string;
+  nombre: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  modalidad: string;
+  duracion: number;
+  profesor?: string;
+  local?: string;
+  aula?: string;
+  carrera_id?: string | null;
+  carreras?: { id: string; nombre: string } | null;
+}
 interface Matricula { id: string; alumnos: { id: string; dni: string; nombres: string; apellidos: string; carrera: string } }
 interface Curso { id: string; nombre: string; orden: number; creditos?: number; }
 interface Asistencia { id: string; matricula_id: string; estado: string }
@@ -25,6 +38,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [modulos, setModulos] = useState<Modulo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModulo, setSelectedModulo] = useState<Modulo | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const [tab, setTab] = useState<"asistencia" | "notas">("asistencia");
   const [matriculas, setMatriculas] = useState<Matricula[]>([]);
@@ -41,10 +55,13 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [showNewCurso, setShowNewCurso] = useState(false);
   const [newCursoNombre, setNewCursoNombre] = useState("");
   const [newCursoCreditos, setNewCursoCreditos] = useState(1);
+  const [newCursoDocenteId, setNewCursoDocenteId] = useState("");
   const [showEditCurso, setShowEditCurso] = useState(false);
   const [editCursoId, setEditCursoId] = useState("");
   const [editCursoNombre, setEditCursoNombre] = useState("");
   const [editCursoCreditos, setEditCursoCreditos] = useState(1);
+  const [editCursoDocenteId, setEditCursoDocenteId] = useState("");
+  const [docentes, setDocentes] = useState<any[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [alertInfo, setAlertInfo] = useState<{ open: boolean; message: string; type: "success" | "error" }>({ open: false, message: "", type: "success" });
@@ -52,6 +69,15 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   useEffect(() => {
     const url = docenteId ? `/api/modulos?docente_id=${docenteId}` : "/api/modulos";
     fetch(url).then(r => r.json()).then(data => { setModulos(Array.isArray(data) ? data : []); setLoading(false); });
+  }, [docenteId]);
+
+  useEffect(() => {
+    if (!docenteId) {
+      fetch("/api/docentes")
+        .then(r => r.json())
+        .then(data => setDocentes(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
   }, [docenteId]);
 
   const loadMatriculas = async (moduloId: string) => {
@@ -158,7 +184,8 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           modulo_id: selectedModulo.id, 
           nombre: newCursoNombre, 
           orden: cursos.length + 1,
-          creditos: newCursoCreditos
+          creditos: newCursoCreditos,
+          docente_id: docenteId ? docenteId : (newCursoDocenteId || null)
         })
       });
       const data = await res.json();
@@ -167,6 +194,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
       setShowNewCurso(false);
       setNewCursoNombre("");
       setNewCursoCreditos(1);
+      setNewCursoDocenteId("");
       await loadCursos(selectedModulo.id);
       setSelectedCursoId(data.id);
     } catch (err: any) {
@@ -184,7 +212,11 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
     try {
       const res = await fetch(`/api/cursos/${editCursoId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: editCursoNombre, creditos: editCursoCreditos })
+        body: JSON.stringify({ 
+          nombre: editCursoNombre, 
+          creditos: editCursoCreditos,
+          docente_id: docenteId ? docenteId : (editCursoDocenteId || null)
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Error editando curso");
@@ -225,25 +257,43 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
     return (
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
         <AlertDialog open={alertInfo.open} type={alertInfo.type} message={alertInfo.message} onClose={() => setAlertInfo(p => ({...p, open: false}))} />
-        <div style={{ ...cardStyle, padding: "24px 28px" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Panel Docente</h2>
-          <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>Seleccione un módulo para registrar asistencia y notas.</p>
+        <div style={{ ...cardStyle, padding: "24px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Panel Docente</h2>
+            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>Seleccione un módulo para registrar asistencia y notas.</p>
+          </div>
+          {/* Buscador */}
+          <div style={{ position: "relative", width: 320 }}>
+            <Search size={15} style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,.5)" }} />
+            <input
+              type="text"
+              placeholder="Buscar módulo o carrera…"
+              style={{ ...inpStyle, paddingLeft: 38, fontSize: 13 }}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+          </div>
         </div>
         {loading ? (
           <div style={{ textAlign: "center", padding: 40, color: "#4ab3d8" }}>Cargando módulos...</div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
             {modulos
-              .filter(m => !docenteId || new Date().toISOString().split("T")[0] <= m.fecha_fin)
+              .filter(m => !docenteId || new Date().toLocaleDateString('sv-SE') <= m.fecha_fin)
+              .filter(m => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.toLowerCase();
+                return m.nombre.toLowerCase().includes(q) || (m.carreras?.nombre || "").toLowerCase().includes(q);
+              })
               .map(m => {
-                const isFinished = new Date().toISOString().split("T")[0] > m.fecha_fin;
+                const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
               return (
-                <div key={m.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column" }} 
+                <div key={m.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }} 
                      onClick={() => setSelectedModulo(m)}
                      onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
                      onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
                   
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{m.modalidad}</span>
                       <span style={{ 
@@ -259,9 +309,18 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                     </div>
                   </div>
                   
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", marginBottom: 12, lineHeight: 1.3 }}>{m.nombre}</h3>
+                  <div>
+                    {m.carreras && (
+                      <div style={{ marginBottom: 6 }}>
+                        <span style={carreraBadgeStyle(m.carreras.nombre)}>
+                          {m.carreras.nombre}
+                        </span>
+                      </div>
+                    )}
+                    <h3 style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{m.nombre}</h3>
+                  </div>
                   
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.profesor || "Docente no asignado"}</div>
                   </div>
@@ -291,10 +350,10 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ 
                 padding: "3px 10px", borderRadius: 12, fontWeight: 700, fontSize: 10, letterSpacing: 0.5,
-                background: new Date().toISOString().split("T")[0] > selectedModulo.fecha_fin ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
-                color: new Date().toISOString().split("T")[0] > selectedModulo.fecha_fin ? "#94a3b8" : "#34d399"
+                background: new Date().toLocaleDateString('sv-SE') > selectedModulo.fecha_fin ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
+                color: new Date().toLocaleDateString('sv-SE') > selectedModulo.fecha_fin ? "#94a3b8" : "#34d399"
               }}>
-                {new Date().toISOString().split("T")[0] > selectedModulo.fecha_fin ? "FINALIZADO" : "EN CURSO"}
+                {new Date().toLocaleDateString('sv-SE') > selectedModulo.fecha_fin ? "FINALIZADO" : "EN CURSO"}
               </span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={13} style={{ color: "#4ab3d8" }} /> {selectedModulo.fecha_inicio} al {selectedModulo.fecha_fin}</div>
@@ -387,35 +446,43 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
               {cursos.length === 0 ? (
                 <span style={{ fontSize: 12, color: "rgba(248,113,113,0.8)" }}>No hay cursos creados.</span>
               ) : (
-                <select style={{ ...inpStyle, width: 220, height: 36 }} value={selectedCursoId} onChange={e => setSelectedCursoId(e.target.value)}>
-                  {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre} ({c.creditos || 1} CR)</option>)}
+                <select style={{ ...inpStyle, width: 260, height: 36 }} value={selectedCursoId} onChange={e => setSelectedCursoId(e.target.value)}>
+                  {cursos.map(c => {
+                    const docName = (c as any).docentes ? ` - ${((c as any).docentes.nombres || "").split(" ")[0]} ${((c as any).docentes.apellidos || "").split(" ")[0]}` : "";
+                    return <option key={c.id} value={c.id}>{c.nombre} ({c.creditos || 1} CR){docName}</option>;
+                  })}
                 </select>
               )}
-              <button 
-                style={{ ...btnSecondary, height: 36, marginLeft: 10 }} 
-                onClick={() => {
-                  setNewCursoNombre("");
-                  setNewCursoCreditos(1);
-                  setShowNewCurso(true);
-                }}
-              >
-                <Plus size={14} /> Nuevo Curso
-              </button>
-              {cursos.length > 0 && (
-                <button 
-                  style={{ ...btnSecondary, height: 36, marginLeft: 5 }} 
-                  onClick={() => {
-                    const currentCurso = cursos.find(c => c.id === selectedCursoId);
-                    if (currentCurso) {
-                      setEditCursoId(currentCurso.id);
-                      setEditCursoNombre(currentCurso.nombre);
-                      setEditCursoCreditos(currentCurso.creditos || 1);
-                      setShowEditCurso(true);
-                    }
-                  }}
-                >
-                  <Edit size={14} /> Editar Curso
-                </button>
+              {!docenteId && (
+                <>
+                  <button 
+                    style={{ ...btnSecondary, height: 36, marginLeft: 10 }} 
+                    onClick={() => {
+                      setNewCursoNombre("");
+                      setNewCursoCreditos(1);
+                      setShowNewCurso(true);
+                    }}
+                  >
+                    <Plus size={14} /> Nuevo Curso
+                  </button>
+                  {cursos.length > 0 && (
+                    <button 
+                      style={{ ...btnSecondary, height: 36, marginLeft: 5 }} 
+                      onClick={() => {
+                        const currentCurso = cursos.find(c => c.id === selectedCursoId);
+                        if (currentCurso) {
+                          setEditCursoId(currentCurso.id);
+                          setEditCursoNombre(currentCurso.nombre);
+                          setEditCursoCreditos(currentCurso.creditos || 1);
+                          setEditCursoDocenteId((currentCurso as any).docente_id || "");
+                          setShowEditCurso(true);
+                        }
+                      }}
+                    >
+                      <Edit size={14} /> Editar Curso
+                    </button>
+                  )}
+                </>
               )}
             </div>
             
@@ -489,6 +556,23 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
               required 
             />
           </div>
+          {!docenteId && (
+            <div style={{ marginBottom: 15 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.7)", marginBottom: 6, textTransform: "uppercase" }}>Docente Asignado</label>
+              <div style={{ position: "relative" }}>
+                <select 
+                  style={inpStyle} 
+                  value={newCursoDocenteId} 
+                  onChange={e => setNewCursoDocenteId(e.target.value)}
+                >
+                  <option value="">Sin docente</option>
+                  {docentes.map(d => (
+                    <option key={d.id} value={d.id}>{d.apellidos}, {d.nombres}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
             <button type="button" style={btnSecondary} onClick={() => setShowNewCurso(false)}>Cancelar</button>
             <button type="submit" style={btnPrimary} disabled={saving}>Crear Curso</button>
@@ -522,6 +606,23 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
               required 
             />
           </div>
+          {!docenteId && (
+            <div style={{ marginBottom: 15 }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "rgba(74,179,216,0.7)", marginBottom: 6, textTransform: "uppercase" }}>Docente Asignado</label>
+              <div style={{ position: "relative" }}>
+                <select 
+                  style={inpStyle} 
+                  value={editCursoDocenteId} 
+                  onChange={e => setEditCursoDocenteId(e.target.value)}
+                >
+                  <option value="">Sin docente</option>
+                  {docentes.map(d => (
+                    <option key={d.id} value={d.id}>{d.apellidos}, {d.nombres}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
             <button type="button" style={btnSecondary} onClick={() => setShowEditCurso(false)}>Cancelar</button>
             <button type="submit" style={btnPrimary} disabled={saving}>Guardar Cambios</button>

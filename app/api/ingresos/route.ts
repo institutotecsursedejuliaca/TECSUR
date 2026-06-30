@@ -141,3 +141,29 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Error interno al procesar la solicitud." }, { status: 500 });
   }
 }
+
+// ── DELETE: eliminar un ingreso por ID ─────────────────────────
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return Response.json({ error: "El ID del ingreso es requerido." }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("ingresos")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500 });
+    }
+
+    return Response.json({ success: true, message: "Ingreso eliminado correctamente." });
+  } catch {
+    return Response.json({ error: "Error interno al eliminar el ingreso." }, { status: 500 });
+  }
+}
+

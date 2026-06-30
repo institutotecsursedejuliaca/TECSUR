@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, UserPlus, Trash2, Mail, Key, ShieldAlert, CheckCircle, Save, Loader2, Pencil } from "lucide-react";
+import { Users, UserPlus, Trash2, Mail, Key, ShieldAlert, CheckCircle, Save, Loader2, Pencil, Search } from "lucide-react";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
@@ -13,6 +13,7 @@ interface Docente {
   email: string;
   created_at: string;
   dni?: string;
+  activo?: boolean;
 }
 
 const cardStyle: React.CSSProperties = {
@@ -84,6 +85,8 @@ export default function GestionDocentesView() {
   const [delTarget, setDelTarget] = useState<Docente | null>(null);
   const [resetTarget, setResetTarget] = useState<Docente | null>(null);
   const [editTarget, setEditTarget] = useState<Docente | null>(null);
+  const [toggleTarget, setToggleTarget] = useState<Docente | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [msg, setMsg] = useState<{ open: boolean; type: "success" | "error"; text: string }>({
     open: false,
     type: "success",
@@ -202,6 +205,34 @@ export default function GestionDocentesView() {
     }
   }
 
+  async function handleToggleActive() {
+    if (!toggleTarget) return;
+    setSubmitting(true);
+    try {
+      const nextActive = toggleTarget.activo === false;
+      const res = await fetch("/api/docentes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: toggleTarget.id,
+          action: "toggle-active",
+          active: nextActive
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al cambiar estado del docente");
+      }
+      flash("success", data.message || `Estado del docente actualizado correctamente`);
+      setToggleTarget(null);
+      loadDocentes();
+    } catch (err: any) {
+      flash("error", err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault();
     if (!editTarget) return;
@@ -280,15 +311,25 @@ export default function GestionDocentesView() {
       `}</style>
 
       {/* Header */}
-      <div style={cardStyle}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-          <div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Cuentas de Docentes</h2>
-            <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)" }}>
-              Cree y gestione los accesos para los docentes del instituto
-            </p>
+      <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: "#dbeafe", marginBottom: 4 }}>Cuentas de Docentes</h2>
+          <p style={{ fontSize: 13, color: "rgba(74,179,216,0.6)", margin: 0 }}>
+            Cree y gestione los accesos para los docentes del instituto
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", width: 260 }}>
+            <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,0.5)" }} />
+            <input
+              type="text"
+              placeholder="Buscar docente o DNI..."
+              style={{ ...inpStyle, paddingLeft: 34, fontSize: 12, height: 38 }}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <button style={btnPrimary} className="btn-hover" onClick={() => { resetForm(); setShowModal(true); }}>
+          <button style={{ ...btnPrimary, height: 38 }} className="btn-hover" onClick={() => { resetForm(); setShowModal(true); }}>
             <UserPlus size={15} /> Registrar Docente
           </button>
         </div>
@@ -320,12 +361,23 @@ export default function GestionDocentesView() {
                 <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)", background: "rgba(10,22,44,0.3)" }}>
                   <th style={{ padding: "12px 18px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Docente</th>
                   <th style={{ padding: "12px 18px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Email</th>
-                  <th style={{ padding: "12px 18px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Fecha Registro</th>
+                  <th style={{ padding: "12px 18px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Estado</th>
                   <th style={{ padding: "12px 18px", textAlign: "right" }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {docentes.map((d) => (
+                {docentes
+                  .filter((d) => {
+                    if (!searchQuery.trim()) return true;
+                    const q = searchQuery.toLowerCase();
+                    return (
+                      d.nombres.toLowerCase().includes(q) ||
+                      d.apellidos.toLowerCase().includes(q) ||
+                      d.email.toLowerCase().includes(q) ||
+                      (d.dni || "").toLowerCase().includes(q)
+                    );
+                  })
+                  .map((d) => (
                   <tr key={d.id} className="ts-tbl-row">
                     <td style={{ padding: "14px 18px" }}>
                       <div style={{ fontWeight: 700, color: "#dbeafe", fontSize: 14 }}>
@@ -342,10 +394,52 @@ export default function GestionDocentesView() {
                         <Mail size={12} style={{ color: "rgba(74,179,216,0.5)" }} /> {d.email}
                       </div>
                     </td>
-                    <td style={{ padding: "14px 18px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>
-                      {new Date(d.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    <td style={{ padding: "14px 18px" }}>
+                      <span style={{ 
+                        padding: "4px 9px", 
+                        borderRadius: 20, 
+                        fontSize: 10, 
+                        fontWeight: 700, 
+                        letterSpacing: "0.03em",
+                        background: (d as any).activo !== false ? "rgba(52,211,153,0.14)" : "rgba(248,113,113,0.14)", 
+                        color: (d as any).activo !== false ? "#34d399" : "#f87171" 
+                      }}>
+                        {(d as any).activo !== false ? "ACTIVO" : "DE BAJA"}
+                      </span>
                     </td>
                     <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                      <button
+                        title={(d as any).activo !== false ? "Dar de Baja (Suspender)" : "Dar de Alta (Activar)"}
+                        style={{
+                          background: (d as any).activo !== false ? "rgba(234,88,12,0.1)" : "rgba(5,150,105,0.1)",
+                          border: (d as any).activo !== false ? "1px solid rgba(234,88,12,0.25)" : "1px solid rgba(5,150,105,0.25)",
+                          color: (d as any).activo !== false ? "rgba(234,88,12,0.85)" : "rgba(5,150,105,0.85)",
+                          cursor: "pointer",
+                          padding: "5px 10px",
+                          borderRadius: 8,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          transition: "all 0.2s",
+                          marginRight: 8,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = (d as any).activo !== false ? "#ea580c" : "#059669";
+                          e.currentTarget.style.background = (d as any).activo !== false ? "rgba(234,88,12,0.18)" : "rgba(5,150,105,0.18)";
+                          e.currentTarget.style.borderColor = (d as any).activo !== false ? "rgba(234,88,12,0.45)" : "rgba(5,150,105,0.45)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = (d as any).activo !== false ? "rgba(234,88,12,0.85)" : "rgba(5,150,105,0.85)";
+                          e.currentTarget.style.background = (d as any).activo !== false ? "rgba(234,88,12,0.1)" : "rgba(5,150,105,0.1)";
+                          e.currentTarget.style.borderColor = (d as any).activo !== false ? "rgba(234,88,12,0.25)" : "rgba(5,150,105,0.25)";
+                        }}
+                        onClick={() => setToggleTarget(d)}
+                      >
+                        {(d as any).activo !== false ? <ShieldAlert size={12} /> : <CheckCircle size={12} />}
+                        <span>{(d as any).activo !== false ? "Dar de baja" : "Activar"}</span>
+                      </button>
                       <button
                         title="Restablecer Contraseña (a DNI)"
                         style={{
@@ -543,6 +637,32 @@ export default function GestionDocentesView() {
             </div>
           )}
         </div>
+      </ConfirmDialog>
+
+      {/* Confirm toggle active/ban */}
+      <ConfirmDialog
+        open={!!toggleTarget}
+        onClose={() => setToggleTarget(null)}
+        onConfirm={handleToggleActive}
+        loading={submitting}
+        title={toggleTarget?.activo !== false ? "¿Dar de Baja al Docente?" : "¿Activar Docente?"}
+        description={
+          toggleTarget?.activo !== false
+            ? "El docente no podrá iniciar sesión en la intranet de TECSUR. Sus datos históricos y asignaciones de cursos se conservarán."
+            : "El docente recuperará su acceso y podrá volver a iniciar sesión en la intranet de TECSUR."
+        }
+        confirmText={toggleTarget?.activo !== false ? "Dar de baja" : "Activar"}
+        confirmBg={toggleTarget?.activo !== false ? "linear-gradient(135deg,#c2410c,#ea580c)" : "linear-gradient(135deg,#047857,#059669)"}
+        confirmShadow={toggleTarget?.activo !== false ? "0 4px 16px rgba(234,88,12,0.3)" : "0 4px 16px rgba(5,96,105,0.3)"}
+      >
+        {toggleTarget && (
+          <div style={{ margin: "10px 0", padding: "10px 14px", background: "rgba(42,109,181,0.05)", border: "1px solid rgba(42,109,181,0.15)", borderRadius: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#dbeafe" }}>
+              {toggleTarget.apellidos}, {toggleTarget.nombres}
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: 2 }}>{toggleTarget.email}</div>
+          </div>
+        )}
       </ConfirmDialog>
     </div>
   );

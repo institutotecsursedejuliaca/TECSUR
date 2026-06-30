@@ -34,6 +34,7 @@ import IngresoView from "@/components/IngresoView";
 import CarrerasView from "@/components/CarrerasView";
 import AuditoriaView from "@/components/AuditoriaView";
 import GestionDocentesView from "@/components/GestionDocentesView";
+import GestionAdminsView from "@/components/GestionAdminsView";
 
 // ── Paleta TECSUR ─────────────────────────────────────────────
 // Azul acero   : #2a6db5
@@ -42,7 +43,7 @@ import GestionDocentesView from "@/components/GestionDocentesView";
 // Fondo oscuro : #060d18
 // -------------------------------------------------------------
 
-type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso" | "carreras" | "auditoria" | "gestion-docentes";
+type View = "consulta" | "docentes" | "pensiones" | "alumnos" | "modulos" | "ingreso" | "carreras" | "auditoria" | "gestion-docentes" | "gestion-admins";
 
 interface NavItem {
   id: View;
@@ -68,6 +69,7 @@ const navGroups: NavGroup[] = [
     items: [
       { id: "carreras", label: "PLAN DE ESTUDIOS", icon: GraduationCap, description: "Gestión de carreras y modulos" },
       { id: "gestion-docentes", label: "DOCENTES", icon: ShieldUser, description: "Crear y gestionar cuentas de los docentes" },
+      { id: "gestion-admins", label: "ADMINISTRADORES", icon: Key, description: "Crear y gestionar cuentas de administradores" },
       { id: "alumnos", label: "ALUMNOS", icon: Users, description: "Registro y matrícula" },
       { id: "docentes", label: "REGISTRO DE ASISTENCIA Y NOTAS", icon: BookOpen, description: "Notas y asistencias" },
     ],
@@ -132,8 +134,16 @@ export default function HomePage() {
       const email = (data.session.user?.email ?? "").toLowerCase().trim();
       setUserEmail(email);
 
-      const adminEmails = ["admin@tecsur.edu.pe", "hhuarayachipana@gmail.com"];
-      if (adminEmails.includes(email)) {
+      const adminEmailsLegacy = ["admin@tecsur.edu.pe", "hhuarayachipana@gmail.com", "administrador@tecsur.com.pe", "institutotecsursedejuliaca@gmail.com"];
+      
+      // Consultar si el correo está en la tabla de administradores
+      const { data: adminData } = await supabase
+        .from("administradores")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (adminData || adminEmailsLegacy.includes(email)) {
         setUserRole("admin");
         setActiveView("ingreso");
         setLoadingRole(false);
@@ -146,7 +156,7 @@ export default function HomePage() {
           .single();
 
         if (error || !docData) {
-          toast.error("Acceso denegado. No se encontró perfil de docente para esta cuenta.");
+          toast.error("Acceso denegado. Perfil de usuario no autorizado.");
           await supabase.auth.signOut();
           setTimeout(() => { window.location.href = "/login"; }, 800);
         } else {
@@ -158,6 +168,33 @@ export default function HomePage() {
       }
     });
   }, [router]);
+
+  // Cierre de sesión por inactividad (10 minutos)
+  useEffect(() => {
+    if (loadingRole || !userRole) return;
+
+    let timeoutId: NodeJS.Timeout;
+    const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutos
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(async () => {
+        toast.warning("Sesión cerrada por inactividad.");
+        await supabase.auth.signOut();
+        setTimeout(() => { window.location.href = "/login"; }, 1000);
+      }, INACTIVITY_LIMIT);
+    };
+
+    const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+    };
+  }, [loadingRole, userRole]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -693,6 +730,7 @@ export default function HomePage() {
             {activeView === "carreras" && <CarrerasView />}
             {activeView === "auditoria" && <AuditoriaView />}
             {activeView === "gestion-docentes" && <GestionDocentesView />}
+            {activeView === "gestion-admins" && <GestionAdminsView currentUserEmail={userEmail || undefined} />}
           </div>
         </main>
       </div>
