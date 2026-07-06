@@ -35,7 +35,7 @@ interface AlumnoData {
       fecha_inicio: string;
       fecha_fin: string;
       modalidad: string;
-      duracion: number;
+      duracion?: string | number | null;
     };
     notas_cursos: Array<{
       curso_id: string;
@@ -399,7 +399,7 @@ export default function PublicConsultaPage() {
                             style={{
                               fontSize: 12, fontWeight: 800,
                               padding: "4px 11px", borderRadius: 100,
-                              ...(Math.round(prom) >= 13
+                              ...(Math.round(prom) >= 14
                                 ? { background: "rgba(34,197,94,0.08)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.18)" }
                                 : { background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.18)" }
                               ),
@@ -459,7 +459,7 @@ export default function PublicConsultaPage() {
                                     padding: "4px 11px", borderRadius: 100,
                                     ...(n.nota === null
                                       ? { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.07)" }
-                                      : n.nota >= 13
+                                      : n.nota >= 14
                                         ? { background: "rgba(34,197,94,0.08)", color: "#4ade80", border: "1px solid rgba(34,197,94,0.18)" }
                                         : { background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.18)" }
                                     ),

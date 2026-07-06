@@ -267,14 +267,14 @@ export default async function ReporteModuloPage({
                     {listaCursos.map(c => {
                       const val = notasMap[m.id]?.[c.id];
                       return (
-                        <td key={c.id} className="text-center font-bold" style={{ color: val && val < 13 ? "red" : "black" }}>
+                        <td key={c.id} className="text-center font-bold" style={{ color: val !== undefined && val < 14 ? "red" : "black" }}>
                           {val !== undefined ? val : ""}
                         </td>
                       );
                     })}
                     
                     {/* Promedio */}
-                    <td className="bg-blue text-center font-bold" style={{ color: prom && prom < 13 ? "red" : "black", borderRight: "2px solid #9ca3af" }}>
+                    <td className="bg-blue text-center font-bold" style={{ color: prom !== null && prom < 14 ? "red" : "black", borderRight: "2px solid #9ca3af" }}>
                       {prom !== null ? prom : ""}
                     </td>
                     

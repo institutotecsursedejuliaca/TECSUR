@@ -10,6 +10,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "TECSUR | Intranet Académica",
   description: "Sistema de gestión académica para Instituto Tecnológico de Maquinaria Pesada TECSUR",
+  icons: {
+    icon: "/img/logo.png",
+    shortcut: "/img/logo.png",
+    apple: "/img/logo.png",
+  },
 };
 
 export default function RootLayout({

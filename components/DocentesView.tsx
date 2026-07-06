@@ -13,7 +13,7 @@ interface Modulo {
   fecha_inicio: string;
   fecha_fin: string;
   modalidad: string;
-  duracion: number;
+  duracion?: string | number | null;
   profesor?: string;
   local?: string;
   aula?: string;
@@ -703,7 +703,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                           type="number" 
                           min={0} max={20} step={1}
                           placeholder="—"
-                          style={{ ...inpStyle, width: 80, height: 32, textAlign: "center", fontSize: 14, fontWeight: 700, color: notasMap[m.id] && parseFloat(notasMap[m.id]) >= 13 ? "#34d399" : notasMap[m.id] && parseFloat(notasMap[m.id]) < 13 ? "#f87171" : "#dbeafe" }} 
+                          style={{ ...inpStyle, width: 80, height: 32, textAlign: "center", fontSize: 14, fontWeight: 700, color: notasMap[m.id] && parseFloat(notasMap[m.id]) >= 14 ? "#34d399" : notasMap[m.id] && parseFloat(notasMap[m.id]) < 14 ? "#f87171" : "#dbeafe" }} 
                           value={notasMap[m.id] ?? ""}
                           onChange={(e) => setNotasMap(p => ({ ...p, [m.id]: e.target.value }))}
                         />

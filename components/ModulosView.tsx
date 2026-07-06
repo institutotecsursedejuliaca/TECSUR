@@ -12,7 +12,7 @@ interface Carrera { id: string; nombre: string; }
 interface Curso { id: string; nombre: string; orden: number; }
 interface Modulo {
   id: string; nombre: string; fecha_inicio: string; fecha_fin: string;
-  modalidad: "presencial" | "virtual" | "semipresencial"; duracion: number;
+  modalidad: "presencial" | "virtual" | "semipresencial"; duracion?: string | null;
   carrera_id?: string | null; profesor?: string | null;
   local?: string | null; aula?: string | null; horario?: string | null;
   carreras?: Carrera | null; cursos?: Curso[];
@@ -45,7 +45,7 @@ const MODALIDAD_TEXT: Record<string, string> = {
 
 const emptyForm = {
   nombre: "", fecha_inicio: "", fecha_fin: "", modalidad: "presencial" as Modulo["modalidad"],
-  duracion: 120, carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: ""
+  duracion: "", carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: ""
 };
 
 export default function ModulosView({
@@ -128,7 +128,7 @@ export default function ModulosView({
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin,
       modalidad: form.modalidad,
-      duracion: Number(form.duracion),
+      duracion: form.duracion || null,
       carrera_id: form.carrera_id || null,
       profesor: form.profesor || null,
       local: form.local || null,
@@ -150,7 +150,7 @@ export default function ModulosView({
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin,
       modalidad: form.modalidad,
-      duracion: Number(form.duracion),
+      duracion: form.duracion || null,
       carrera_id: form.carrera_id || null,
       profesor: form.profesor || null,
       local: form.local || null,
@@ -175,7 +175,7 @@ export default function ModulosView({
 
   function openEdit(m: Modulo) {
     setEditTarget(m);
-    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion, carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "" });
+    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion ?? "", carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "" });
     setShowForm(false);
   }
 
@@ -908,8 +908,8 @@ export default function ModulosView({
               </div>
             </div>
             <div>
-              <label style={lbl}>Duración (horas) *</label>
-              <input className="md-inp" style={inp} type="number" min={1} placeholder="120" value={form.duracion} onChange={e => setForm(p => ({ ...p, duracion: parseInt(e.target.value) || 0 }))} required />
+              <label style={lbl}>Duración</label>
+              <input className="md-inp" style={inp} type="text" placeholder="Ej: 120 horas, 4 semanas" value={form.duracion} onChange={e => setForm(p => ({ ...p, duracion: e.target.value }))} />
             </div>
             <div>
               <label style={lbl}>Fecha Inicio *</label>
@@ -1023,7 +1023,7 @@ export default function ModulosView({
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.fecha_inicio} → {m.fecha_fin}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion}h · {Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion ? `${m.duracion} · ` : ""}{Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
                   {m.profesor && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><User size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Prof. {m.profesor}</div>}
                   {m.horario && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Horario: {m.horario}</div>}
                   {m.local && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><MapPin size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.local}{m.aula ? ` · ${m.aula}` : ""}</div>}

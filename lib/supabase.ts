@@ -66,7 +66,7 @@ export interface Modulo {
   fecha_inicio: string
   fecha_fin: string
   modalidad: 'presencial' | 'virtual' | 'semipresencial'
-  duracion: number           // horas
+  duracion?: string | null   // duracion
   carrera_id?: string | null
   profesor?: string | null
   local?: string | null

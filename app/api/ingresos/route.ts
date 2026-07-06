@@ -14,7 +14,13 @@ export async function GET(request: NextRequest) {
 
     const from = (page - 1) * pageSize;
     const to   = from + pageSize - 1;
-    const hoy  = new Date().toISOString().slice(0, 10);
+    const now  = new Date();
+    const hoy  = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(now);
 
     // 0. Count fijo de hoy (independiente de filtros)
     const { count: countHoy } = await supabase
@@ -101,8 +107,19 @@ export async function POST(request: NextRequest) {
 
     // Fecha y hora actuales (Lima, UTC-5)
     const now      = new Date();
-    const fechaHoy = now.toISOString().slice(0, 10); // YYYY-MM-DD
-    const horaHoy  = now.toTimeString().slice(0, 8);  // HH:MM:SS
+    const fechaHoy = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Lima",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(now); // YYYY-MM-DD
+    const horaHoy  = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Lima",
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }).format(now);  // HH:MM:SS
 
     // Verificar si ya registró ingreso hoy
     const { data: existing } = await supabase

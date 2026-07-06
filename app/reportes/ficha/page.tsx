@@ -113,7 +113,7 @@ export default async function ReporteFichaPage({ searchParams }: { searchParams:
 
   const fechaRegistro = matricula ? matricula.fecha_registro : alumno.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10);
   const carrera = alumno.carrera;
-  const duracion = matricula?.modulos?.duracion ? `${matricula.modulos.duracion} hrs` : "—";
+  const duracion = matricula?.modulos?.duracion ? String(matricula.modulos.duracion) : "—";
   const turno = matricula ? matricula.turno : "—";
   const horario = matricula?.modulos?.horario || "—";
   const modalidad = matricula?.modulos?.modalidad || "—";

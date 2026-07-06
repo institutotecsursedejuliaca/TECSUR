@@ -37,7 +37,7 @@ interface AlumnoData {
       fecha_inicio: string;
       fecha_fin: string;
       modalidad: string;
-      duracion: number;
+      duracion?: string | number | null;
     };
     notas_cursos: Array<{
       curso_id: string;
@@ -59,8 +59,7 @@ interface AlumnoData {
 function scoreClass(score: number | null): string {
   if (score === null) return "";
   if (score >= 17) return "score-excellent";
-  if (score >= 13) return "score-good";
-  if (score >= 11) return "score-average";
+  if (score >= 14) return "score-good";
   return "score-poor";
 }
 

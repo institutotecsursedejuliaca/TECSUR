@@ -193,7 +193,7 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
             // Cálculos del ciclo
             const validNotas = notas.filter(n => n.nota !== null);
             const totalCreditos = notas.reduce((acc, n) => acc + (n.cursos?.creditos || 1), 0);
-            const aprobadosCreditos = notas.reduce((acc, n) => acc + (n.nota !== null && n.nota >= 13 ? (n.cursos?.creditos || 1) : 0), 0);
+            const aprobadosCreditos = notas.reduce((acc, n) => acc + (n.nota !== null && n.nota >= 14 ? (n.cursos?.creditos || 1) : 0), 0);
             
             let sumProd = 0;
             let sumCred = 0;
@@ -248,7 +248,7 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
                       </tr>
                     ) : (
                       notas.map((n) => {
-                        const isFailed = n.nota !== null && n.nota < 13;
+                        const isFailed = n.nota !== null && n.nota < 14;
                         return (
                           <tr key={n.id}>
                             <td style={{ fontWeight: "bold" }}>

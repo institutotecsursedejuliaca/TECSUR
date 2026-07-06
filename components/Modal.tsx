@@ -28,20 +28,10 @@ export default function Modal({
     }
   }, [open]);
 
-  // Cierra al hacer clic en el backdrop
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const rect = dialogRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const { clientX: x, clientY: y } = e;
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-      onClose();
-    }
-  }
-
   return (
     <dialog
       ref={dialogRef}
-      onClick={handleBackdropClick}
+      onCancel={(e) => e.preventDefault()}
       style={{
         padding: 0,
         border: "none",

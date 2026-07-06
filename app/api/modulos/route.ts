@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
     carrera_id, profesor, local, aula, horario
   } = body;
 
-  if (!nombre || !fecha_inicio || !fecha_fin || !modalidad || !duracion) {
-    return Response.json({ error: "nombre, fecha_inicio, fecha_fin, modalidad y duracion son requeridos" }, { status: 400 });
+  if (!nombre || !fecha_inicio || !fecha_fin || !modalidad) {
+    return Response.json({ error: "nombre, fecha_inicio, fecha_fin y modalidad son requeridos" }, { status: 400 });
   }
 
   const modalidadesValidas = ["presencial", "virtual", "semipresencial"];
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       fecha_inicio,
       fecha_fin,
       modalidad,
-      duracion: parseInt(duracion),
+      duracion: duracion || null,
       carrera_id: carrera_id || null,
       profesor: profesor || null,
       local: local || null,

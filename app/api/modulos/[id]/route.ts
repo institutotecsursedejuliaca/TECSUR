@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     .from("modulos")
     .update({
       nombre, fecha_inicio, fecha_fin, modalidad,
-      duracion: duracion ? parseInt(duracion) : undefined,
+      duracion: duracion !== undefined ? (duracion || null) : undefined,
       carrera_id: carrera_id || null,
       profesor: profesor || null,
       local: local || null,
