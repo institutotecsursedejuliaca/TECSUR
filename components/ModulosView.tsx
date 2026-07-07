@@ -831,6 +831,8 @@ export default function ModulosView({
                     style={{ ...inp, width: 150, height: 32, fontSize: 12 }}
                     value={fechaAsistencia}
                     onChange={e => setFechaAsistencia(e.target.value)}
+                    min={viewingAlumnos?.fecha_inicio || undefined}
+                    max={viewingAlumnos?.fecha_fin || undefined}
                   />
                 </div>
                 <span style={{ fontSize: 11, color: "rgba(120,160,210,0.6)" }}>

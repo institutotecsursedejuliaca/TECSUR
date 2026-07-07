@@ -762,7 +762,14 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 </span>
               )}
               <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(74,179,216,0.8)", textTransform: "uppercase" }}>Fecha:</label>
-              <input type="date" style={{ ...inpStyle, width: 160, height: 36 }} value={fechaAsistencia} onChange={e => setFechaAsistencia(e.target.value)} />
+              <input
+                type="date"
+                style={{ ...inpStyle, width: 160, height: 36 }}
+                value={fechaAsistencia}
+                onChange={e => setFechaAsistencia(e.target.value)}
+                min={selectedModulo?.fecha_inicio || undefined}
+                max={selectedModulo?.fecha_fin || undefined}
+              />
             </div>
             <button style={btnPrimary} onClick={saveAsistencia} disabled={saving}>
               <Save size={14} /> {saving ? "Guardando..." : "Guardar Asistencia"}
@@ -788,12 +795,24 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                       <div style={{ fontSize: 11, color: "rgba(120,160,210,0.6)" }}>DNI: {m.alumnos.dni}</div>
                     </td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
-                      <div
-                        style={{ display: "inline-flex", cursor: "pointer", color: asistenciasMap[m.id] ? "#34d399" : "rgba(120,160,210,0.3)" }}
+                      <button
+                        type="button"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: asistenciasMap[m.id] ? "#34d399" : "#f87171",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: "5px 10px",
+                          borderRadius: 6,
+                          backgroundColor: asistenciasMap[m.id] ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)",
+                          fontFamily: "inherit"
+                        }}
                         onClick={() => setAsistenciasMap(p => ({ ...p, [m.id]: !p[m.id] }))}
                       >
-                        {asistenciasMap[m.id] ? <CheckSquare size={24} /> : <Square size={24} />}
-                      </div>
+                        {asistenciasMap[m.id] ? "PRESENTE" : "FALTA"}
+                      </button>
                     </td>
                     <td style={{ padding: "12px" }}>
                       <input
