@@ -578,7 +578,7 @@ export default function AlumnosView() {
               >
                 <thead>
                   <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
-                    {["#", "Código", "DNI", "Apellidos y Nombres", "Carrera", "Celular", ""].map((h) => (
+                    {["#", "Código", "DNI", "Apellidos y Nombres", "Carrera", ""].map((h) => (
                       <th key={h} style={{
                         padding: "10px 14px", textAlign: "left",
                         fontSize: 10, fontWeight: 600,
@@ -594,8 +594,8 @@ export default function AlumnosView() {
                       <td style={{ padding: "11px 14px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>
                         {(page - 1) * PAGE_SIZE + idx + 1}
                       </td>
-                      <td style={{ padding: "11px 14px" }}>
-                        <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(74,179,216,0.12)", border: "1px solid rgba(74,179,216,0.2)", color: "#7cc8e8" }}>
+                      <td style={{ padding: "11px 14px", minWidth: 110, whiteSpace: "nowrap" }}>
+                        <span style={{ display: "inline-block", whiteSpace: "nowrap", fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(74,179,216,0.12)", border: "1px solid rgba(74,179,216,0.2)", color: "#7cc8e8" }}>
                           {a.codigo || "—"}
                         </span>
                       </td>
@@ -613,12 +613,6 @@ export default function AlumnosView() {
                         <span style={carreraBadgeStyle(a.carrera)}>
                           {a.carrera}
                         </span>
-                      </td>
-                      {/* Celular */}
-                      <td style={{ padding: "11px 14px" }}>
-                        {a.celular
-                          ? <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Phone size={11} style={{ color: "rgba(74,179,216,.5)", flexShrink: 0 }} /><span style={{ fontSize: 12, color: "rgba(180,210,240,.8)" }}>{a.celular}</span></div>
-                          : <span style={{ color: "rgba(74,179,216,.2)", fontSize: 11 }}>—</span>}
                       </td>
                       {/* Acciones */}
                       <td style={{ padding: "11px 14px" }}>
@@ -755,8 +749,7 @@ export default function AlumnosView() {
 
           {/* Contacto */}
           {formTab === "contacto" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} placeholder="01-XXXXXXX" value={alumnoForm.telefono ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, telefono: e.target.value }))} /></div>
-            <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} placeholder="9XXXXXXXX" value={alumnoForm.celular ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, celular: e.target.value }))} /></div>
+            <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} placeholder="01-XXXXXXX" value={alumnoForm.telefono ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, telefono: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={alumnoForm.correo ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, correo: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={alumnoForm.facebook ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, facebook: e.target.value }))} /></div>
             <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={alumnoForm.colegio ?? ""} onChange={e => setAlumnoForm(p => ({ ...p, colegio: e.target.value }))} /></div>
@@ -813,8 +806,7 @@ export default function AlumnosView() {
             </div>}
 
             {formTab === "contacto" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} value={editForm.telefono ?? ""} onChange={e => setEditForm(p => p ? { ...p, telefono: e.target.value } : p)} /></div>
-              <div><label style={fieldLabel}>Celular</label><input className="ts-input" style={inputStyle} value={editForm.celular ?? ""} onChange={e => setEditForm(p => p ? { ...p, celular: e.target.value } : p)} /></div>
+              <div style={{ gridColumn: "1/-1" }}><label style={fieldLabel}>Teléfono</label><input className="ts-input" style={inputStyle} value={editForm.telefono ?? ""} onChange={e => setEditForm(p => p ? { ...p, telefono: e.target.value } : p)} /></div>
               <div><label style={fieldLabel}>Correo</label><input type="email" className="ts-input" style={inputStyle} value={editForm.correo ?? ""} onChange={e => setEditForm(p => p ? { ...p, correo: e.target.value } : p)} /></div>
               <div><label style={fieldLabel}>Facebook</label><input className="ts-input" style={inputStyle} value={editForm.facebook ?? ""} onChange={e => setEditForm(p => p ? { ...p, facebook: e.target.value } : p)} /></div>
               <div><label style={fieldLabel}>Colegio</label><input className="ts-input" style={inputStyle} value={editForm.colegio ?? ""} onChange={e => setEditForm(p => p ? { ...p, colegio: e.target.value } : p)} /></div>
@@ -943,7 +935,6 @@ export default function AlumnosView() {
 
               {sec("Contacto", <Phone size={12} style={{ color: "rgba(74,179,216,.7)" }} />)}
               {row("Teléfono", v.telefono)}
-              {row("Celular", v.celular)}
               {row("Correo electrónico", v.correo)}
               {row("Facebook", v.facebook)}
               {row("Colegio", v.colegio)}

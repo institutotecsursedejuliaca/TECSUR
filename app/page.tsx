@@ -75,10 +75,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: "Administración",
+    title: "ADMINISTRACIÓN Y FINANZAS",
     items: [
-      //{ id: "pensiones", label: "Pensiones", icon: CreditCard, description: "Pagos y deudas" },
-      //{ id: "consulta", label: "Consulta Admin", icon: Search, description: "Reportes DNI" },
+      { id: "pensiones", label: "PENSIONES Y PAGOS", icon: CreditCard, description: "Gestión de pagos y recibos" },
+      { id: "consulta", label: "CONSULTA DE ALUMNOS", icon: Search, description: "Búsqueda DNI e historial" },
       { id: "auditoria", label: "AUDITORÍA", icon: Shield, description: "Historial de cambios" },
     ],
   },

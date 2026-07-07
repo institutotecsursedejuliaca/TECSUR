@@ -178,6 +178,7 @@ export default function CarrerasView() {
         .cr-card-hover:hover{border-color:rgba(74,179,216,.3)!important;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
         .cr-action:hover{background:rgba(42,109,181,.15)!important;color:#4ab3d8!important;}
         .cr-del:hover{background:rgba(248,113,113,.1)!important;color:#f87171!important;}
+        .cr-btn-modules:hover{background:rgba(74,179,216,0.18)!important;color:#dbeafe!important;}
       `}</style>
 
       {/* Header */}
@@ -347,6 +348,33 @@ export default function CarrerasView() {
                     {c.total_alumnos ?? 0} alumnos
                   </div>
                 </div>
+
+                <button
+                  className="cr-btn-modules"
+                  style={{
+                    ...btnS,
+                    marginTop: 6,
+                    width: "100%",
+                    justifyContent: "center",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 8,
+                    background: "rgba(74,179,216,0.08)",
+                    border: "1px solid rgba(74,179,216,0.18)",
+                    color: "#7cc8e8",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewingModulos(c);
+                    loadCarreraModulos(c.id);
+                  }}
+                >
+                  <Layers size={13} />
+                  Ver Módulos
+                </button>
 
                 {c.created_by && (
                   <div style={{ fontSize: 10, color: "rgba(42,109,181,0.45)", borderTop: "1px solid rgba(42,109,181,0.08)", paddingTop: 8 }}>

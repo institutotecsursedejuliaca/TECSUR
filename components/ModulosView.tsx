@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Cpu, Plus, X, ChevronDown, Calendar, Clock, GraduationCap, MapPin, User, Pencil, Trash2, Layers, Users, ChevronLeft } from "lucide-react";
+import { Cpu, Plus, X, ChevronDown, Calendar, Clock, GraduationCap, MapPin, User, Pencil, Trash2, Layers, Users, ChevronLeft, Search } from "lucide-react";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
@@ -45,7 +45,7 @@ const MODALIDAD_TEXT: Record<string, string> = {
 
 const emptyForm = {
   nombre: "", fecha_inicio: "", fecha_fin: "", modalidad: "presencial" as Modulo["modalidad"],
-  duracion: "", carrera_id: "", profesor: "", local: "SEDE CENTRAL", aula: "", horario: ""
+  duracion: "", carrera_id: "", profesor: "", local: "AV. SAN MARTIN N° 817", aula: "", horario: ""
 };
 
 export default function ModulosView({
@@ -78,6 +78,19 @@ export default function ModulosView({
   const [viewingAlumnos, setViewingAlumnos] = useState<Modulo | null>(null);
   const [alumnosMatriculados, setAlumnosMatriculados] = useState<any[]>([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
+
+  // Estados para búsqueda, filtro y paginación de alumnos matriculados
+  const [searchAlum, setSearchAlum] = useState("");
+  const [filterTurno, setFilterTurno] = useState("");
+  const [pageAlum, setPageAlum] = useState(1);
+  const [pageSizeAlum] = useState(10);
+
+  // Estados para búsqueda y paginación de módulos
+  const [searchMod, setSearchMod] = useState("");
+  const [pageMod, setPageMod] = useState(1);
+  const [pageSizeMod] = useState(6);
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
 
   // Estados de Cursos y Docentes
   const [cursosModulo, setCursosModulo] = useState<any[]>([]);
@@ -175,7 +188,18 @@ export default function ModulosView({
 
   function openEdit(m: Modulo) {
     setEditTarget(m);
-    setForm({ nombre: m.nombre, fecha_inicio: m.fecha_inicio, fecha_fin: m.fecha_fin, modalidad: m.modalidad, duracion: m.duracion ?? "", carrera_id: m.carrera_id ?? "", profesor: m.profesor ?? "", local: m.local ?? "", aula: m.aula ?? "", horario: m.horario ?? "" });
+    setForm({
+      nombre: m.nombre,
+      fecha_inicio: m.fecha_inicio,
+      fecha_fin: m.fecha_fin,
+      modalidad: m.modalidad,
+      duracion: m.duracion ?? "",
+      carrera_id: m.carrera_id ?? "",
+      profesor: m.profesor ?? "",
+      local: m.local ?? "",
+      aula: m.aula ?? "",
+      horario: m.horario ?? ""
+    });
     setShowForm(false);
   }
 
@@ -208,12 +232,15 @@ export default function ModulosView({
 
   async function loadAlumnosModulo(m: Modulo) {
     setViewingAlumnos(m);
+    setSearchAlum("");
+    setFilterTurno("");
+    setPageAlum(1);
     setLoadingAlumnos(true);
     try {
       const resMat = await fetch(`/api/matriculas?modulo_id=${m.id}`);
       const dataMat = await resMat.json();
       setAlumnosMatriculados(Array.isArray(dataMat) ? dataMat : []);
-      
+
       await Promise.all([
         loadCursosModulo(m.id),
         loadDocentes()
@@ -337,7 +364,7 @@ export default function ModulosView({
       const data = await res.json();
       const newAsis: Record<string, boolean> = {};
       const newObs: Record<string, string> = {};
-      
+
       alumnosMatriculados.forEach(m => {
         newAsis[m.id] = true;
         newObs[m.id] = "";
@@ -402,19 +429,41 @@ export default function ModulosView({
   const isFormOpen = showForm || !!editTarget;
 
   if (viewingAlumnos) {
+    // Filtrar alumnos matriculados
+    const filteredAlumnos = alumnosMatriculados.filter(mat => {
+      const alum = mat.alumnos;
+      if (!alum) return false;
+
+      const q = searchAlum.toLowerCase().trim();
+      if (q) {
+        const dniMatch = (alum.dni || "").toLowerCase().includes(q);
+        const codigoMatch = (alum.codigo || "").toLowerCase().includes(q);
+        const nombresMatch = (alum.nombres || "").toLowerCase().includes(q);
+        const apellidosMatch = (alum.apellidos || "").toLowerCase().includes(q);
+        if (!dniMatch && !codigoMatch && !nombresMatch && !apellidosMatch) {
+          return false;
+        }
+      }
+
+      if (filterTurno) {
+        if (mat.turno !== filterTurno) return false;
+      }
+
+      return true;
+    });
+
+    const totalAlum = filteredAlumnos.length;
+    const totalPagesAlum = Math.max(1, Math.ceil(totalAlum / pageSizeAlum));
+    const currentPageAlum = Math.min(pageAlum, totalPagesAlum);
+    const paginatedAlumnos = filteredAlumnos.slice(
+      (currentPageAlum - 1) * pageSizeAlum,
+      currentPageAlum * pageSizeAlum
+    );
+
     return (
       <div className="ts-viewing-alumnos-container" style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          .ts-viewing-alumnos-layout {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 20px;
-          }
-          @media (max-width: 1024px) {
-            .ts-viewing-alumnos-layout {
-              grid-template-columns: 1fr !important;
-            }
-          }
+        <style dangerouslySetInnerHTML={{
+          __html: `
           .ts-btn-back:hover { background: #f1f5f9!important; transform: translateY(-1px); }
           .ts-btn-back:active { transform: translateY(0); }
         `}} />
@@ -448,140 +497,207 @@ export default function ModulosView({
           </div>
         </div>
 
-        {/* Layout de dos columnas */}
-        <div className="ts-viewing-alumnos-layout">
-          {/* Columna Izquierda: Listado de Alumnos */}
-          <div style={{ ...card, overflow: "hidden" }}>
+        {/* Layout en columna de ancho completo (100%) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20, width: "100%" }}>
+
+          {/* SECCIÓN SUPERIOR: Cursos del Módulo (100% ancho) */}
+          <div style={{ ...card, padding: "20px 24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Cursos del Módulo</h3>
+              <button
+                style={{ ...btnS, padding: "5px 10px", fontSize: 11, height: 26, gap: 4 }}
+                onClick={() => { resetCursoForm(); setShowCursoForm(true); setEditCursoTarget(null); }}
+              >
+                <Plus size={12} /> Nuevo Curso
+              </button>
+            </div>
+
             {loadingAlumnos ? (
-              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.5)" }}>Cargando alumnos...</div>
-            ) : alumnosMatriculados.length === 0 ? (
-              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
-                <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
-                <p style={{ fontSize: 13 }}>No hay alumnos matriculados en este módulo</p>
+              <div style={{ textAlign: "center", padding: 20, color: "rgba(74,179,216,0.5)", fontSize: 12 }}>Cargando cursos...</div>
+            ) : cursosModulo.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "30px 10px", color: "rgba(74,179,216,0.4)", fontSize: 12 }}>
+                No hay cursos creados en este módulo.
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table className="ts-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
-                      {["#", "DNI", "Apellidos y Nombres", "Celular", "Turno", "Fecha Matrícula", ""].map((h, i) => (
-                        <th key={i} style={{ padding: "12px 16px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", textAlign: h === "" ? "right" : "left" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {alumnosMatriculados.map((mat, idx) => (
-                      <tr key={mat.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)" }}>
-                        <td style={{ padding: "12px 16px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>{idx + 1}</td>
-                        <td style={{ padding: "12px 16px" }}>
-                          <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
-                            {mat.alumnos?.dni}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px 16px" }}>
-                          <div style={{ fontWeight: 700, color: "#dbeafe" }}>{mat.alumnos?.apellidos}</div>
-                          <div style={{ color: "rgba(180,210,240,0.7)", fontSize: 12 }}>{mat.alumnos?.nombres}</div>
-                        </td>
-                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)" }}>{mat.alumnos?.celular || "—"}</td>
-                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)", textTransform: "capitalize" }}>{mat.turno?.replace(/_/g, " ")}</td>
-                        <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>{mat.fecha_registro}</td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                            <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
-                            <ReporteAsistenciaBtn matriculaId={mat.id} />
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 12 }}>
+                {cursosModulo.map(c => {
+                  const doc = c.docentes;
+                  return (
+                    <div key={c.id} style={{ padding: 12, background: "rgba(10,22,44,0.5)", border: "1px solid rgba(42,109,181,0.15)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ fontWeight: 700, color: "#dbeafe", fontSize: 13, lineHeight: 1.3 }}>
+                          {c.nombre} <span style={{ fontSize: 10, color: "rgba(74,179,216,0.7)", fontWeight: 500 }}>({c.creditos || 1} CR)</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          <button
+                            title="Editar Curso / Asignar Docente"
+                            style={{ background: "transparent", border: "none", color: "rgba(74,179,216,0.6)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
+                            onClick={() => openEditCurso(c)}
+                            onMouseEnter={e => e.currentTarget.style.color = "#4ab3d8"}
+                            onMouseLeave={e => e.currentTarget.style.color = "rgba(74,179,216,0.6)"}
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            title="Eliminar Curso"
+                            style={{ background: "transparent", border: "none", color: "rgba(248,113,113,0.5)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
+                            onClick={() => setDelCursoTarget(c)}
+                            onMouseEnter={e => e.currentTarget.style.color = "#f87171"}
+                            onMouseLeave={e => e.currentTarget.style.color = "rgba(248,113,113,0.5)"}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
+                        <div style={{ fontSize: 11, color: doc ? "#34d399" : "#fbbf24", fontWeight: doc ? 600 : 500 }}>
+                          {doc ? `Prof. ${doc.nombres.split(" ")[0]} ${doc.apellidos.split(" ")[0]}` : "Sin docente asignado"}
+                        </div>
+                        <button
+                          style={{
+                            background: "rgba(52,211,153,0.12)",
+                            border: "1px solid rgba(52,211,153,0.25)",
+                            color: "#34d399",
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                          onClick={() => {
+                            setActiveAsistenciaCurso(c);
+                            setFechaAsistencia(new Date().toLocaleDateString('sv-SE'));
+                          }}
+                        >
+                          <Calendar size={11} /> Asistencia
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Columna Derecha: Cursos */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div style={{ ...card, padding: "20px 24px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h3 style={{ fontSize: 15, fontWeight: 800, color: "#dbeafe", margin: 0 }}>Cursos del Módulo</h3>
-                <button 
-                  style={{ ...btnS, padding: "5px 10px", fontSize: 11, height: 26, gap: 4 }}
-                  onClick={() => { resetCursoForm(); setShowCursoForm(true); setEditCursoTarget(null); }}
-                >
-                  <Plus size={12} /> Nuevo Curso
-                </button>
+          {/* SECCIÓN INFERIOR: Listado de Alumnos (100% ancho, paginado y filtrado) */}
+          <div style={{ ...card, overflow: "hidden" }}>
+
+            {/* Barra de Filtros y Búsqueda */}
+            <div style={{ display: "flex", gap: 12, padding: "16px 24px", borderBottom: "1px solid rgba(42,109,181,0.12)", flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,0.5)" }} />
+                <input
+                  type="text"
+                  placeholder="Buscar por DNI, Nombres o Apellidos..."
+                  value={searchAlum}
+                  onChange={e => { setSearchAlum(e.target.value); setPageAlum(1); }}
+                  style={{ ...inp, padding: "0 12px 0 34px", height: 36, fontSize: 12.5 }}
+                />
               </div>
-
-              {loadingAlumnos ? (
-                <div style={{ textAlign: "center", padding: 20, color: "rgba(74,179,216,0.5)", fontSize: 12 }}>Cargando cursos...</div>
-              ) : cursosModulo.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "30px 10px", color: "rgba(74,179,216,0.4)", fontSize: 12 }}>
-                  No hay cursos creados en este módulo.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {cursosModulo.map(c => {
-                    const doc = c.docentes;
-                    return (
-                      <div key={c.id} style={{ padding: 12, background: "rgba(10,22,44,0.5)", border: "1px solid rgba(42,109,181,0.15)", borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <div style={{ fontWeight: 700, color: "#dbeafe", fontSize: 13, lineHeight: 1.3 }}>
-                            {c.nombre} <span style={{ fontSize: 10, color: "rgba(74,179,216,0.7)", fontWeight: 500 }}>({c.creditos || 1} CR)</span>
-                          </div>
-                          <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                            <button
-                              title="Editar Curso / Asignar Docente"
-                              style={{ background: "transparent", border: "none", color: "rgba(74,179,216,0.6)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
-                              onClick={() => openEditCurso(c)}
-                              onMouseEnter={e => e.currentTarget.style.color = "#4ab3d8"}
-                              onMouseLeave={e => e.currentTarget.style.color = "rgba(74,179,216,0.6)"}
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              title="Eliminar Curso"
-                              style={{ background: "transparent", border: "none", color: "rgba(248,113,113,0.5)", padding: 4, cursor: "pointer", transition: "color 0.2s" }}
-                              onClick={() => setDelCursoTarget(c)}
-                              onMouseEnter={e => e.currentTarget.style.color = "#f87171"}
-                              onMouseLeave={e => e.currentTarget.style.color = "rgba(248,113,113,0.5)"}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
-                          <div style={{ fontSize: 11, color: doc ? "#34d399" : "#fbbf24", fontWeight: doc ? 600 : 500 }}>
-                            {doc ? `Prof. ${doc.nombres.split(" ")[0]} ${doc.apellidos.split(" ")[0]}` : "Sin docente asignado"}
-                          </div>
-                          <button
-                            style={{
-                              background: "rgba(52,211,153,0.12)",
-                              border: "1px solid rgba(52,211,153,0.25)",
-                              color: "#34d399",
-                              padding: "4px 8px",
-                              borderRadius: 6,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4
-                            }}
-                            onClick={() => {
-                              setActiveAsistenciaCurso(c);
-                              setFechaAsistencia(new Date().toLocaleDateString('sv-SE'));
-                            }}
-                          >
-                            <Calendar size={11} /> Asistencia
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <select
+                value={filterTurno}
+                onChange={e => { setFilterTurno(e.target.value); setPageAlum(1); }}
+                style={{ ...inp, width: 160, height: 36, fontSize: 12.5, padding: "0 10px" }}
+              >
+                <option value="">Todos los Turnos</option>
+                <option value="mañana">Mañana</option>
+                <option value="tarde">Tarde</option>
+                <option value="sabado_am">Sábado AM</option>
+                <option value="domingo_am">Domingo AM</option>
+              </select>
             </div>
+
+            {loadingAlumnos ? (
+              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.5)" }}>Cargando alumnos...</div>
+            ) : filteredAlumnos.length === 0 ? (
+              <div style={{ padding: "60px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
+                <Users size={32} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
+                <p style={{ fontSize: 13 }}>No se encontraron alumnos que coincidan con la búsqueda o filtros</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="ts-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid rgba(42,109,181,0.14)" }}>
+                        {["#", "DNI", "Apellidos y Nombres", "Celular", "Turno", "Fecha Matrícula", ""].map((h, i) => (
+                          <th key={i} style={{ padding: "12px 16px", fontSize: 10, fontWeight: 600, color: "rgba(74,179,216,0.55)", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", textAlign: h === "" ? "right" : "left" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedAlumnos.map((mat, idx) => (
+                        <tr key={mat.id} style={{ borderBottom: "1px solid rgba(42,109,181,0.08)" }}>
+                          <td style={{ padding: "12px 16px", color: "rgba(74,179,216,0.4)", fontSize: 11 }}>{(currentPageAlum - 1) * pageSizeAlum + idx + 1}</td>
+                          <td style={{ padding: "12px 16px" }}>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, padding: "3px 8px", borderRadius: 5, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.2)", color: "#7cc8e8" }}>
+                              {mat.alumnos?.dni}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 16px" }}>
+                            <div style={{ fontWeight: 700, color: "#dbeafe" }}>{mat.alumnos?.apellidos}</div>
+                            <div style={{ color: "rgba(180,210,240,0.7)", fontSize: 12 }}>{mat.alumnos?.nombres}</div>
+                          </td>
+                          <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)" }}>{mat.alumnos?.celular || "—"}</td>
+                          <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.8)", textTransform: "capitalize" }}>{mat.turno?.replace(/_/g, " ")}</td>
+                          <td style={{ padding: "12px 16px", color: "rgba(180,210,240,0.6)", fontSize: 12 }}>{mat.fecha_registro}</td>
+                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+                              <ReporteMatriculaBtn matriculaId={mat.id} label="Constancia" />
+                              <ReporteAsistenciaBtn matriculaId={mat.id} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Paginación */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 24px", borderTop: "1px solid rgba(42,109,181,0.12)", flexWrap: "wrap", gap: 10 }}>
+                  <span style={{ fontSize: 12.5, color: "rgba(180,210,240,0.6)" }}>
+                    Mostrando {paginatedAlumnos.length} de {totalAlum} alumnos
+                  </span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button
+                      disabled={currentPageAlum === 1}
+                      onClick={() => setPageAlum(p => Math.max(1, p - 1))}
+                      style={{
+                        ...btnS,
+                        padding: "5px 10px",
+                        fontSize: 11,
+                        height: 28,
+                        cursor: currentPageAlum === 1 ? "not-allowed" : "pointer",
+                        opacity: currentPageAlum === 1 ? 0.4 : 1
+                      }}
+                    >
+                      Anterior
+                    </button>
+                    <span style={{ fontSize: 12.5, color: "#dbeafe", padding: "0 6px" }}>
+                      Página {currentPageAlum} de {totalPagesAlum}
+                    </span>
+                    <button
+                      disabled={currentPageAlum === totalPagesAlum}
+                      onClick={() => setPageAlum(p => Math.min(totalPagesAlum, p + 1))}
+                      style={{
+                        ...btnS,
+                        padding: "5px 10px",
+                        fontSize: 11,
+                        height: 28,
+                        cursor: currentPageAlum === totalPagesAlum ? "not-allowed" : "pointer",
+                        opacity: currentPageAlum === totalPagesAlum ? 0.4 : 1
+                      }}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -803,23 +919,48 @@ export default function ModulosView({
   }
 
   const filteredModulos = modulos.filter(m => {
-    if (!filterStatus) return true;
-    return getStatus(m).label === filterStatus;
+    if (filterStatus) {
+      if (getStatus(m).label !== filterStatus) return false;
+    }
+    if (filterStartDate) {
+      if (m.fecha_inicio < filterStartDate) return false;
+    }
+    if (filterEndDate) {
+      if (m.fecha_fin > filterEndDate) return false;
+    }
+    if (searchMod.trim()) {
+      const q = searchMod.toLowerCase().trim();
+      const nameMatch = (m.nombre || "").toLowerCase().includes(q);
+      const profMatch = (m.profesor || "").toLowerCase().includes(q);
+      const aulaMatch = (m.aula || "").toLowerCase().includes(q);
+      const horarioMatch = (m.horario || "").toLowerCase().includes(q);
+      if (!nameMatch && !profMatch && !aulaMatch && !horarioMatch) return false;
+    }
+    return true;
   });
 
+  const totalPagesMod = Math.ceil(filteredModulos.length / pageSizeMod);
+  const currentPageMod = Math.min(pageMod, totalPagesMod || 1);
+  const paginatedModulos = filteredModulos.slice(
+    (currentPageMod - 1) * pageSizeMod,
+    currentPageMod * pageSizeMod
+  );
+
   return (
-    <div style={{ maxWidth: carreraId ? "none" : 1100, width: "100%", margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
         .md-inp:focus{border-color:rgba(74,179,216,.55)!important;box-shadow:0 0 0 3px rgba(74,179,216,.1)!important;}
         .md-card:hover{border-color:rgba(74,179,216,.3)!important;transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
         .md-action:hover{background:rgba(42,109,181,.15)!important;color:#4ab3d8!important;}
         .md-del:hover{background:rgba(248,113,113,.1)!important;color:#f87171!important;}
+        .md-btn-alumnos:hover{background:rgba(52,211,153,0.18)!important;color:#6ee7b7!important;}
         .ts-btn-back:hover { background: #f1f5f9!important; transform: translateY(-1px); }
         .ts-btn-back:active { transform: translateY(0); }
       `}</style>
 
       {/* Header */}
-      <div style={{ ...card, padding: "24px 28px" }}>
+      <div style={{ ...card, padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+        {/* Fila de Título */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
@@ -843,22 +984,89 @@ export default function ModulosView({
                 : "Módulos académicos del instituto con profesor y aula"}
             </p>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {/* Filtro por estado del módulo */}
-            <div style={{ position: "relative" }}>
-              <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer", height: 40, fontSize: 12 }} value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}>
-                <option value="">Todos los estados</option>
-                <option value="Próximo">Próximo</option>
-                <option value="En curso">En curso</option>
-                <option value="Concluido">Concluido</option>
-              </select>
-              <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
-            </div>
-            <button style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ ...emptyForm, carrera_id: carreraId || "" }); }}>
-              <Plus size={14} /> Nuevo Módulo
-            </button>
+        </div>
+
+        {/* Línea Divisoria */}
+        <div style={{ height: "1px", background: "rgba(42,109,181,0.12)", margin: "0 -28px" }} />
+
+        {/* Fila de Controles (Buscador, Filtro y Botón) */}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", width: "100%" }}>
+          {/* Buscador de Módulos */}
+          <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
+            <input
+              className="md-inp"
+              style={{ ...inp, paddingLeft: 34, height: 40, fontSize: 12 }}
+              placeholder="Buscar módulo, profesor, horario, aula..."
+              value={searchMod}
+              onChange={e => { setSearchMod(e.target.value); setPageMod(1); }}
+            />
+            <Search size={13} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "rgba(74,179,216,0.5)" }} />
           </div>
+
+          {/* Filtro por estado del módulo */}
+          <div style={{ position: "relative" }}>
+            <select className="md-inp" style={{ ...inp, paddingRight: 32, cursor: "pointer", height: 40, fontSize: 12 }} value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">Todos los estados</option>
+              <option value="Próximo">Próximo</option>
+              <option value="En curso">En curso</option>
+              <option value="Concluido">Concluido</option>
+            </select>
+            <ChevronDown size={12} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
+          </div>
+
+          {/* Filtro por fecha - Desde */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, color: "rgba(74,179,216,0.6)", fontWeight: 700, letterSpacing: "0.05em" }}>DESDE:</span>
+            <input
+              type="date"
+              className="md-inp"
+              style={{ ...inp, width: 130, height: 40, fontSize: 11, padding: "0 8px", cursor: "pointer" }}
+              value={filterStartDate}
+              onChange={e => { setFilterStartDate(e.target.value); setPageMod(1); }}
+            />
+          </div>
+
+          {/* Filtro por fecha - Hasta */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, color: "rgba(74,179,216,0.6)", fontWeight: 700, letterSpacing: "0.05em" }}>HASTA:</span>
+            <input
+              type="date"
+              className="md-inp"
+              style={{ ...inp, width: 130, height: 40, fontSize: 11, padding: "0 8px", cursor: "pointer" }}
+              value={filterEndDate}
+              onChange={e => { setFilterEndDate(e.target.value); setPageMod(1); }}
+            />
+          </div>
+
+          {/* Botón de limpiar fechas */}
+          {(filterStartDate || filterEndDate) && (
+            <button
+              onClick={() => { setFilterStartDate(""); setFilterEndDate(""); setPageMod(1); }}
+              style={{
+                background: "rgba(248,113,113,0.1)",
+                border: "1px solid rgba(248,113,113,0.2)",
+                color: "#f87171",
+                height: 40,
+                padding: "0 12px",
+                borderRadius: 10,
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                transition: "all 0.2s"
+              }}
+            >
+              <X size={12} />
+              LIMPIAR FECHAS
+            </button>
+          )}
+
+          <button style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ ...emptyForm, carrera_id: carreraId || "" }); }}>
+            <Plus size={14} /> Nuevo Módulo
+          </button>
         </div>
       </div>
 
@@ -984,66 +1192,182 @@ export default function ModulosView({
 
       {/* Cards grid */}
       {loading ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>
           {[1, 2, 3].map(i => <div key={i} style={{ height: 200, borderRadius: 14, background: "rgba(42,109,181,0.07)" }} />)}
         </div>
       ) : modulos.length === 0 ? (
         <div style={{ padding: "60px 20px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
           <Cpu size={48} style={{ margin: "0 auto 12px", opacity: 0.2 }} /><p style={{ fontSize: 13 }}>No hay módulos registrados</p>
         </div>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-          {filteredModulos.map(m => {
-            const status = getStatus(m);
-            return (
-              <div key={m.id} className="md-card" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 12, transition: "all .2s" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(59,130,246,0.2),rgba(6,182,212,0.2))", border: "1px solid rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Cpu size={16} style={{ color: "#60a5fa" }} />
-                    </div>
-                    <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: MODALIDAD_COLORS[m.modalidad], color: MODALIDAD_TEXT[m.modalidad], fontWeight: 600 }}>{m.modalidad}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(42,109,181,0.1)", color: status.color, fontWeight: 600 }}>{status.label}</span>
-                    {onNavigate && (
-                      <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => onNavigate("docentes")} title="Ir a Panel Docente (Notas y Asistencia)"><GraduationCap size={12} /></button>
-                    )}
-                    <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => loadAlumnosModulo(m)} title="Ver Alumnos"><Users size={12} /></button>
-                    <ReporteModuloBtn moduloId={m.id} style={{ width: 26, height: 26, borderRadius: 7 }} />
-                    <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => openEdit(m)} title="Editar"><Pencil size={12} /></button>
-                    <button className="md-del" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => setDelTarget(m)} title="Eliminar"><Trash2 size={12} /></button>
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre}</div>
-                  {m.carreras && <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={10} />{m.carreras.nombre}</div>}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.fecha_inicio} → {m.fecha_fin}</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion ? `${m.duracion} · ` : ""}{Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
-                  {m.profesor && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><User size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Prof. {m.profesor}</div>}
-                  {m.horario && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Horario: {m.horario}</div>}
-                  {m.local && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><MapPin size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.local}{m.aula ? ` · ${m.aula}` : ""}</div>}
-                </div>
-
-                {m.cursos && m.cursos.length > 0 && (
-                  <div style={{ borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 10 }}>
-                    <div style={{ fontSize: 10, color: "rgba(74,179,216,0.4)", marginBottom: 5, display: "flex", alignItems: "center", gap: 4 }}><Layers size={10} />{m.cursos.length} CURSOS</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                      {m.cursos.slice(0, 4).map(c => (
-                        <span key={c.id} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, background: "rgba(42,109,181,0.12)", border: "1px solid rgba(42,109,181,0.18)", color: "rgba(120,160,210,0.8)" }}>{c.nombre}</span>
-                      ))}
-                      {m.cursos.length > 4 && <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 8, color: "rgba(74,179,216,0.4)" }}>+{m.cursos.length - 4} más</span>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+      ) : filteredModulos.length === 0 ? (
+        <div style={{ padding: "60px 20px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
+          <Search size={48} style={{ margin: "0 auto 12px", opacity: 0.2 }} />
+          <p style={{ fontSize: 13 }}>No se encontraron módulos con los filtros aplicados</p>
         </div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>
+            {paginatedModulos.map(m => {
+              const status = getStatus(m);
+              return (
+                <div key={m.id} className="md-card" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 12, transition: "all .2s" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(59,130,246,0.2),rgba(6,182,212,0.2))", border: "1px solid rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <Cpu size={16} style={{ color: "#60a5fa" }} />
+                      </div>
+                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: MODALIDAD_COLORS[m.modalidad], color: MODALIDAD_TEXT[m.modalidad], fontWeight: 600 }}>{m.modalidad.toUpperCase()}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(42,109,181,0.1)", color: status.color, fontWeight: 600 }}>{status.label.toUpperCase()}</span>
+                      {onNavigate && (
+                        <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => onNavigate("docentes")} title="Ir a Panel Docente (Notas y Asistencia)"><GraduationCap size={12} /></button>
+                      )}
+                      <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => openEdit(m)} title="Editar"><Pencil size={12} /></button>
+                      <button className="md-del" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => setDelTarget(m)} title="Eliminar"><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre}</div>
+                    {m.carreras && <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={10} />{m.carreras.nombre}</div>}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {m.aula && (
+                        <span style={{
+                          fontSize: 10,
+                          padding: "2.5px 8px",
+                          borderRadius: 6,
+                          background: "rgba(99,102,241,0.15)",
+                          color: "#a5b4fc",
+                          border: "1px solid rgba(99,102,241,0.25)",
+                          fontWeight: 600,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          maxWidth: "100%"
+                        }} title={`Aula: ${m.aula}`}>
+                          <MapPin size={9} style={{ flexShrink: 0 }} />
+                          AULA: {m.aula.toUpperCase()}
+                        </span>
+                      )}
+                      {m.local && (
+                        <span style={{
+                          fontSize: 10,
+                          padding: "2.5px 8px",
+                          borderRadius: 6,
+                          background: "rgba(74,179,216,0.12)",
+                          color: "#7cc8e8",
+                          border: "1px solid rgba(74,179,216,0.22)",
+                          fontWeight: 500,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          maxWidth: "100%"
+                        }} title={`Sede: ${m.local}`}>
+                          {m.local.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.fecha_inicio} → {m.fecha_fin}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion ? `${m.duracion} · ` : ""}{Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
+                    {m.profesor && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><User size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Prof. {m.profesor}</div>}
+                    {m.horario && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Horario: {m.horario}</div>}
+                  </div>
+
+                  <button
+                    className="md-btn-alumnos"
+                    style={{
+                      ...btnS,
+                      marginTop: 10,
+                      width: "100%",
+                      justifyContent: "center",
+                      padding: "8px 12px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      borderRadius: 8,
+                      background: "rgba(52,211,153,0.08)",
+                      border: "1px solid rgba(52,211,153,0.18)",
+                      color: "#34d399",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onClick={() => loadAlumnosModulo(m)}
+                  >
+                    <Users size={13} />
+                    VER ALUMNOS DEL MODULO
+                  </button>
+
+                  <ReporteModuloBtn
+                    moduloId={m.id}
+                    text="Descargar Registro (Notas y Asistencia)"
+                    style={{
+                      marginTop: 8,
+                      width: "100%",
+                      justifyContent: "center",
+                      padding: "8px 12px",
+                      height: "auto",
+                      borderRadius: 8,
+                      background: "rgba(251,191,36,0.08)",
+                      border: "1px solid rgba(251,191,36,0.18)",
+                      color: "#fbbf24",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Paginación de módulos */}
+          {totalPagesMod > 1 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "0 4px", flexWrap: "wrap", gap: 10 }}>
+              <span style={{ fontSize: 12.5, color: "rgba(120,160,210,0.6)" }}>
+                Mostrando {paginatedModulos.length} de {filteredModulos.length} módulos
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  disabled={currentPageMod === 1}
+                  onClick={() => setPageMod(p => Math.max(1, p - 1))}
+                  style={{
+                    ...btnS,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    height: 28,
+                    cursor: currentPageMod === 1 ? "not-allowed" : "pointer",
+                    opacity: currentPageMod === 1 ? 0.4 : 1
+                  }}
+                >
+                  Anterior
+                </button>
+                <span style={{ fontSize: 12.5, color: "#dbeafe", padding: "0 6px" }}>
+                  Página {currentPageMod} de {totalPagesMod}
+                </span>
+                <button
+                  disabled={currentPageMod === totalPagesMod}
+                  onClick={() => setPageMod(p => Math.min(totalPagesMod, p + 1))}
+                  style={{
+                    ...btnS,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    height: 28,
+                    cursor: currentPageMod === totalPagesMod ? "not-allowed" : "pointer",
+                    opacity: currentPageMod === totalPagesMod ? 0.4 : 1
+                  }}
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

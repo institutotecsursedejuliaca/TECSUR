@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   let selectQuery = `
     *,
     carreras (id, nombre),
-    cursos (id, nombre, orden)
+    cursos (id, nombre, orden, docente_id)
   `;
 
   if (docenteId) {
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const {
     nombre, fecha_inicio, fecha_fin, modalidad, duracion,
-    carrera_id, profesor, local, aula, horario
+    carrera_id, profesor, local, aula, horario, costo_matricula, costo_pension
   } = body;
 
   if (!nombre || !fecha_inicio || !fecha_fin || !modalidad) {
@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
       local: local || null,
       aula: aula || null,
       horario: horario || null,
+      costo_matricula: costo_matricula ?? 0,
+      costo_pension: costo_pension ?? 0,
     }])
     .select(`*, carreras(id, nombre)`)
     .single();

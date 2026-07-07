@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     .from("matriculas")
     .select(`
       id,
+      alumno_id,
+      modulo_id,
       fecha_registro,
       turno,
       created_at,

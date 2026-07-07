@@ -75,6 +75,7 @@ export default async function ReporteAsistenciaPage({ searchParams }: { searchPa
 
   return (
     <>
+      <title>{`${matricula.alumnos.apellidos}_${matricula.alumnos.nombres}_ReporteAsistencia_${matricula.alumnos.codigo || matricula.alumnos.dni}`.toUpperCase().replace(/\s+/g, "_")}</title>
       <style dangerouslySetInnerHTML={{__html: `
         body { margin: 0; padding: 0; background: #e5e7eb; font-family: 'Inter', system-ui, sans-serif; color: #111827; }
         .a4-container {

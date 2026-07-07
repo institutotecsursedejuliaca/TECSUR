@@ -69,6 +69,7 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
 
   return (
     <>
+      <title>{`${alumno.apellidos}_${alumno.nombres}_RecordAcademico_${alumno.codigo || alumno.dni}`.toUpperCase().replace(/\s+/g, "_")}</title>
       <style dangerouslySetInnerHTML={{__html: `
         body { margin: 0; padding: 0; background: #e5e7eb; font-family: 'Arial', sans-serif; color: #000; }
         .a4-container {

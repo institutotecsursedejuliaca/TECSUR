@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { alumno_id, modulo_id, nro_recibo, monto_pagado, deuda_pendiente, fecha_pago } = body;
+  const { alumno_id, modulo_id, nro_recibo, monto_pagado, deuda_pendiente, fecha_pago, concepto, detalles } = body;
 
   if (!alumno_id || !modulo_id || !nro_recibo || monto_pagado === undefined) {
     return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
         monto_pagado,
         deuda_pendiente: deuda_pendiente ?? 0,
         fecha_pago: fecha_pago ?? new Date().toISOString().split("T")[0],
+        concepto: concepto ?? "PENSION",
+        detalles: detalles || null,
       },
     ])
     .select()

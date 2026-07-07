@@ -1,23 +1,24 @@
 "use client";
 
-import { FileSpreadsheet } from "lucide-react";
+import { FileText } from "lucide-react";
 
-interface ReporteModuloBtnProps {
+interface ReporteCursoBtnProps {
+  cursoId: string;
   moduloId: string;
   text?: string;
   style?: React.CSSProperties;
 }
 
-export default function ReporteModuloBtn({ moduloId, text, style }: ReporteModuloBtnProps) {
+export default function ReporteCursoBtn({ cursoId, moduloId, text, style }: ReporteCursoBtnProps) {
   const handlePrint = (e: React.MouseEvent) => {
     e.stopPropagation();
-    window.open(`/reportes/modulo?modulo_id=${moduloId}`, "_blank");
+    window.open(`/reportes/curso?curso_id=${cursoId}&modulo_id=${moduloId}`, "_blank");
   };
 
   return (
     <button
       onClick={handlePrint}
-      title="Descargar Registro de Notas y Asistencia"
+      title="Descargar Reporte del Curso"
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -27,9 +28,9 @@ export default function ReporteModuloBtn({ moduloId, text, style }: ReporteModul
         height: 32,
         padding: text ? "0 12px" : 0,
         borderRadius: 8,
-        background: "rgba(16,185,129,0.1)",
-        border: "1px solid rgba(16,185,129,0.2)",
-        color: "#10b981",
+        background: "rgba(251,191,36,0.08)",
+        border: "1px solid rgba(251,191,36,0.18)",
+        color: "#fbbf24",
         cursor: "pointer",
         transition: "all 0.2s",
         fontSize: 12,
@@ -37,15 +38,15 @@ export default function ReporteModuloBtn({ moduloId, text, style }: ReporteModul
         ...style
       }}
       onMouseEnter={(e) => {
-        const hoverBg = style?.background ? String(style.background).replace("0.08", "0.18").replace("0.1", "0.2") : "rgba(16,185,129,0.2)";
+        const hoverBg = style?.background ? String(style.background).replace("0.08", "0.18").replace("0.1", "0.2") : "rgba(251,191,36,0.2)";
         e.currentTarget.style.background = hoverBg;
       }}
       onMouseLeave={(e) => {
-        const leaveBg = style?.background ? String(style.background) : "rgba(16,185,129,0.1)";
+        const leaveBg = style?.background ? String(style.background) : "rgba(251,191,36,0.08)";
         e.currentTarget.style.background = leaveBg;
       }}
     >
-      <FileSpreadsheet size={16} />
+      <FileText size={16} />
       {text && <span>{text}</span>}
     </button>
   );

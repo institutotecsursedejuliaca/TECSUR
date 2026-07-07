@@ -16,6 +16,7 @@ export function carreraBadgeStyle(carrera: string): React.CSSProperties {
   return {
     fontSize: 11, padding: "3px 9px", borderRadius: 5,
     background: bg, border: `1px solid ${border}`, color,
-    whiteSpace: "nowrap" as const, fontWeight: 600,
+    whiteSpace: "normal" as const, wordBreak: "break-word" as const,
+    fontWeight: 600, display: "inline-block", maxWidth: "100%"
   };
 }

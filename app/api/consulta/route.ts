@@ -43,28 +43,44 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "Error al obtener matrículas" }, { status: 500 });
   }
 
-  // Get notas_cursos for each matricula
+  // Get notas_cursos and asistencias for each matricula (only if enrolled in any module)
   const matriculaIds = (matriculas ?? []).map((m) => m.id);
-  const { data: notas_cursos, error: notasError } = await supabase
-    .from("notas_cursos")
-    .select(`
-      id,
-      matricula_id,
-      curso_id,
-      nota,
-      cursos (
-        id,
-        nombre,
-        orden
-      )
-    `)
-    .in("matricula_id", matriculaIds.length > 0 ? matriculaIds : ["none"]);
+  let notas_cursos: any[] = [];
+  let asistencias: any[] = [];
 
-  if (notasError) {
-    return Response.json({ error: "Error al obtener notas" }, { status: 500 });
+  if (matriculaIds.length > 0) {
+    const { data: notasData, error: notasError } = await supabase
+      .from("notas_cursos")
+      .select(`
+        id,
+        matricula_id,
+        curso_id,
+        nota,
+        cursos (
+          id,
+          nombre,
+          orden
+        )
+      `)
+      .in("matricula_id", matriculaIds);
+
+    if (notasError) {
+      return Response.json({ error: `Error al obtener notas: ${notasError.message}` }, { status: 500 });
+    }
+    notas_cursos = notasData || [];
+
+    const { data: asistenciasData, error: asistenciasError } = await supabase
+      .from("asistencias")
+      .select("*")
+      .in("matricula_id", matriculaIds);
+
+    if (asistenciasError) {
+      return Response.json({ error: `Error al obtener asistencias: ${asistenciasError.message}` }, { status: 500 });
+    }
+    asistencias = asistenciasData || [];
   }
 
-  // Get pensiones
+  // Get pensiones (pensiones doesn't depend on matriculaIds, only alumno_id)
   const { data: pensiones, error: pensionesError } = await supabase
     .from("pensiones")
     .select(`
@@ -74,17 +90,7 @@ export async function GET(request: NextRequest) {
     .eq("alumno_id", alumno.id);
 
   if (pensionesError) {
-    return Response.json({ error: "Error al obtener pensiones" }, { status: 500 });
-  }
-
-  // Get asistencias
-  const { data: asistencias, error: asistenciasError } = await supabase
-    .from("asistencias")
-    .select("*")
-    .in("matricula_id", matriculaIds.length > 0 ? matriculaIds : ["none"]);
-
-  if (asistenciasError) {
-    return Response.json({ error: "Error al obtener asistencias" }, { status: 500 });
+    return Response.json({ error: `Error al obtener pensiones: ${pensionesError.message}` }, { status: 500 });
   }
 
   // Compose response
