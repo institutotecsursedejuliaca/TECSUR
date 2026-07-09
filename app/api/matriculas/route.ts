@@ -76,3 +76,16 @@ export async function POST(request: NextRequest) {
   }
   return Response.json(data, { status: 201 });
 }
+
+export async function DELETE(request: NextRequest) {
+  const { searchParams } = request.nextUrl;
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return Response.json({ error: "ID de matrícula requerido" }, { status: 400 });
+  }
+
+  const { error } = await supabase.from("matriculas").delete().eq("id", id);
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ success: true });
+}

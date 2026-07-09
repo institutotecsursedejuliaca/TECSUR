@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
-  const { nombre, fecha_inicio, fecha_fin, modalidad, duracion, carrera_id, profesor, local, aula, horario, costo_matricula, costo_pension } = body;
+  const { nombre, fecha_inicio, fecha_fin, modalidad, duracion, carrera_id, profesor, local, aula, horario } = body;
 
   const modalidadesValidas = ["presencial", "virtual", "semipresencial"];
   if (modalidad && !modalidadesValidas.includes(modalidad)) {
@@ -34,8 +34,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
       local: local || null,
       aula: aula || null,
       horario: horario || null,
-      costo_matricula: costo_matricula !== undefined ? costo_matricula : undefined,
-      costo_pension: costo_pension !== undefined ? costo_pension : undefined,
     })
     .eq("id", id)
     .select(`*, carreras(id,nombre)`)

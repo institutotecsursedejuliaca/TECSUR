@@ -33,14 +33,17 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
     return <div style={{ padding: 40, fontFamily: "sans-serif" }}>Error: No se encontró el alumno con el DNI proporcionado.</div>;
   }
 
-  // 2. Cargar matrículas y módulos asociados
+  // 2. Cargar matrículas y módulos asociados (con sus cursos)
   const { data: matriculas, error: errMat } = await supabase
     .from("matriculas")
     .select(`
       id,
       turno,
       fecha_registro,
-      modulos (*)
+      modulos (
+        *,
+        cursos (*)
+      )
     `)
     .eq("alumno_id", alumno.id)
     .order("fecha_registro", { ascending: true });
@@ -190,15 +193,34 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
           listaMatriculas.map((mat, idxModulo) => {
             const notas = notasMapByMatricula.get(mat.id) || [];
             const modulo = Array.isArray(mat.modulos) ? mat.modulos[0] : mat.modulos;
+            const coursesOfModulo = (modulo?.cursos || []).sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0));
+
+            // Mergear para que se muestren todos los cursos del módulo, incluso si no tienen notas registradas
+            const mergedNotas = coursesOfModulo.map((c: any) => {
+              const existingNota = notas.find((n: any) => n.curso_id === c.id);
+              if (existingNota) {
+                return {
+                  ...existingNota,
+                  cursos: c
+                };
+              }
+              return {
+                id: `placeholder-${c.id}`,
+                matricula_id: mat.id,
+                curso_id: c.id,
+                nota: null,
+                cursos: c
+              };
+            });
             
             // Cálculos del ciclo
-            const validNotas = notas.filter(n => n.nota !== null);
-            const totalCreditos = notas.reduce((acc, n) => acc + (n.cursos?.creditos || 1), 0);
-            const aprobadosCreditos = notas.reduce((acc, n) => acc + (n.nota !== null && n.nota >= 14 ? (n.cursos?.creditos || 1) : 0), 0);
+            const validNotas = mergedNotas.filter((n: any) => n.nota !== null);
+            const totalCreditos = mergedNotas.reduce((acc: number, n: any) => acc + (n.cursos?.creditos || 1), 0);
+            const aprobadosCreditos = mergedNotas.reduce((acc: number, n: any) => acc + (n.nota !== null && n.nota >= 14 ? (n.cursos?.creditos || 1) : 0), 0);
             
             let sumProd = 0;
             let sumCred = 0;
-            validNotas.forEach(n => {
+            validNotas.forEach((n: any) => {
               const cred = n.cursos?.creditos || 1;
               sumProd += n.nota * cred;
               sumCred += cred;
@@ -210,20 +232,40 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
             let cumSumCred = 0;
             for (let i = 0; i <= idxModulo; i++) {
               const mId = listaMatriculas[i].id;
+              const mModulo = Array.isArray(listaMatriculas[i].modulos) ? listaMatriculas[i].modulos[0] : listaMatriculas[i].modulos;
+              const mCoursesOfModulo = (mModulo?.cursos || []).sort((a: any, b: any) => (a.orden || 0) - (b.orden || 0));
               const mNotas = notasMapByMatricula.get(mId) || [];
-              const mValidNotas = mNotas.filter(n => n.nota !== null);
-              mValidNotas.forEach(n => {
-                const cred = n.cursos?.creditos || 1;
-                cumSumProd += n.nota * cred;
-                cumSumCred += cred;
+              
+              mCoursesOfModulo.forEach((c: any) => {
+                const existingNota = mNotas.find((n: any) => n.curso_id === c.id);
+                const gradeVal = existingNota ? existingNota.nota : null;
+                if (gradeVal !== null) {
+                  const cred = c.creditos || 1;
+                  cumSumProd += gradeVal * cred;
+                  cumSumCred += cred;
+                }
               });
             }
             const cumulativeWeightedAvg = cumSumCred > 0 ? (cumSumProd / cumSumCred) : null;
+            const formatLocaleDate = (dateStr?: string | null) => {
+              if (!dateStr) return "—";
+              const parts = dateStr.split("-");
+              if (parts.length === 3) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+              }
+              return dateStr;
+            };
+
+            const ROMAN_NUMERALS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+            const roman = ROMAN_NUMERALS[idxModulo] || String(idxModulo + 1);
 
             return (
               <div key={mat.id} style={{ pageBreakInside: "avoid" }}>
                 <div className="modulo-header-strip">
-                  {idxModulo + 1}° CICLO - MÓDULO: {modulo?.nombre}
+                  MÓDULO {roman}: {modulo?.nombre} &nbsp;&nbsp;&nbsp;&nbsp;
+                  <span style={{ fontSize: "11px", fontWeight: "normal", textTransform: "none", color: "#475569" }}>
+                    (Del {formatLocaleDate(modulo?.fecha_inicio)} al {formatLocaleDate(modulo?.fecha_fin)})
+                  </span>
                 </div>
                 
                 <table className="record-table">
@@ -241,14 +283,14 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
                     </tr>
                   </thead>
                   <tbody>
-                    {notas.length === 0 ? (
+                    {mergedNotas.length === 0 ? (
                       <tr>
                         <td colSpan={6} style={{ textAlign: "center", color: "#6b7280", fontStyle: "italic" }}>
                           No hay asignaturas registradas para este módulo.
                         </td>
                       </tr>
                     ) : (
-                      notas.map((n) => {
+                      mergedNotas.map((n: any) => {
                         const isFailed = n.nota !== null && n.nota < 14;
                         return (
                           <tr key={n.id}>

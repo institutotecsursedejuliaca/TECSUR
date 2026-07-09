@@ -226,16 +226,6 @@ export default function CarrerasView() {
               required
             />
           </div>
-          <div>
-            <label style={lbl}>Descripción (opcional)</label>
-            <textarea
-              className="cr-input"
-              style={{ ...inp, height: 80, padding: "10px 14px", resize: "vertical" }}
-              placeholder="Breve descripción de la carrera…"
-              value={form.descripcion}
-              onChange={e => setForm(p => ({ ...p, descripcion: e.target.value }))}
-            />
-          </div>
           {!editTarget && (
             <div style={{ fontSize: 11, color: "rgba(74,179,216,0.5)", marginTop: -6 }}>
               Se registrará con tu usuario: <strong style={{ color: "rgba(74,179,216,0.8)" }}>{userEmail ?? "—"}</strong>
@@ -299,22 +289,46 @@ export default function CarrerasView() {
               <div
                 key={c.id}
                 className="cr-card-hover"
-                style={{ ...card, padding: 22, display: "flex", flexDirection: "column", gap: 14, transition: "all .2s", cursor: "pointer" }}
+                style={{
+                  ...card,
+                  padding: 24,
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  minHeight: 260,
+                  transition: "all .25s ease",
+                  cursor: "pointer",
+                  position: "relative",
+                  overflow: "hidden",
+                  justifyContent: "space-between"
+                }}
                 onClick={() => { setViewingModulos(c); loadCarreraModulos(c.id); }}
               >
+                {/* Visual accent top border */}
+                <div style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 3,
+                  background: "linear-gradient(90deg, #1a4a7a 0%, #2a6db5 55%, #4ab3d8 100%)"
+                }} />
+
+                {/* Top Section: Icon and Actions */}
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                   <div style={{
-                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                    background: "linear-gradient(135deg,rgba(42,109,181,0.25),rgba(74,179,216,0.15))",
-                    border: "1px solid rgba(74,179,216,0.2)",
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                    background: "linear-gradient(135deg, rgba(74,179,216,0.2) 0%, rgba(42,109,181,0.1) 100%)",
+                    border: "1px solid rgba(74,179,216,0.3)",
                     display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 0 12px rgba(74,179,216,0.15)"
                   }}>
-                    <GraduationCap size={18} style={{ color: "#4ab3d8" }} />
+                    <GraduationCap size={20} style={{ color: "#4ab3d8" }} />
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button
                       className="cr-action"
-                      style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
+                      style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(42,109,181,0.25)", background: "transparent", color: "rgba(74,179,216,0.6)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
                       title="Editar"
                       onClick={(e) => { e.stopPropagation(); openEdit(c); }}
                     >
@@ -322,7 +336,7 @@ export default function CarrerasView() {
                     </button>
                     <button
                       className="cr-del"
-                      style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
+                      style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }}
                       title="Eliminar"
                       onClick={(e) => { e.stopPropagation(); setDelTarget(c); }}
                     >
@@ -331,56 +345,81 @@ export default function CarrerasView() {
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#dbeafe", lineHeight: 1.3 }}>{c.nombre}</div>
-                  {c.descripcion && (
-                    <div style={{ fontSize: 12, color: "rgba(120,160,210,0.65)", marginTop: 4, lineHeight: 1.5 }}>{c.descripcion}</div>
+                {/* Title Section (vertically centered with flexGrow to match height exactly) */}
+                <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", justifyContent: "center", margin: "14px 0" }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: "#ffffff", lineHeight: 1.4, letterSpacing: "0.01em", textTransform: "uppercase" }}>
+                    {c.nombre}
+                  </div>
+                </div>
+
+                {/* Badges Section */}
+                <div style={{ display: "flex", gap: 10, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 14, marginBottom: 12 }}>
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#4ab3d8",
+                    background: "rgba(74,179,216,0.12)",
+                    border: "1px solid rgba(74,179,216,0.25)",
+                    padding: "4px 10px",
+                    borderRadius: 6
+                  }}>
+                    <Layers size={12} />
+                    {c.total_modulos ?? 0} Módulos
+                  </div>
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#34d399",
+                    background: "rgba(52,211,153,0.12)",
+                    border: "1px solid rgba(52,211,153,0.25)",
+                    padding: "4px 10px",
+                    borderRadius: 6
+                  }}>
+                    <Users size={12} />
+                    {c.total_alumnos ?? 0} Alumnos
+                  </div>
+                </div>
+
+                {/* Bottom Section: Ver Módulos Button (forces to bottom alignment) */}
+                <div style={{ marginTop: "auto" }}>
+                  <button
+                    className="cr-btn-modules"
+                    style={{
+                      ...btnS,
+                      width: "100%",
+                      justifyContent: "center",
+                      padding: "10px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      borderRadius: 10,
+                      background: "rgba(74,179,216,0.08)",
+                      border: "1px solid rgba(74,179,216,0.22)",
+                      color: "#7cc8e8",
+                      cursor: "pointer",
+                      transition: "all 0.2s"
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewingModulos(c);
+                      loadCarreraModulos(c.id);
+                    }}
+                  >
+                    <Layers size={13} />
+                    Ver Módulos
+                  </button>
+
+                  {c.created_by && (
+                    <div style={{ fontSize: 9.5, color: "rgba(42,109,181,0.45)", borderTop: "1px solid rgba(42,109,181,0.08)", paddingTop: 8, marginTop: 10 }}>
+                      Creado por: {c.created_by}
+                    </div>
                   )}
                 </div>
-
-                <div style={{ display: "flex", gap: 12, borderTop: "1px solid rgba(42,109,181,0.12)", paddingTop: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
-                    <Layers size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
-                    {c.total_modulos ?? 0} módulos
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(120,160,210,0.7)" }}>
-                    <Users size={12} style={{ color: "rgba(74,179,216,0.5)" }} />
-                    {c.total_alumnos ?? 0} alumnos
-                  </div>
-                </div>
-
-                <button
-                  className="cr-btn-modules"
-                  style={{
-                    ...btnS,
-                    marginTop: 6,
-                    width: "100%",
-                    justifyContent: "center",
-                    padding: "8px 12px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    borderRadius: 8,
-                    background: "rgba(74,179,216,0.08)",
-                    border: "1px solid rgba(74,179,216,0.18)",
-                    color: "#7cc8e8",
-                    cursor: "pointer",
-                    transition: "all 0.2s"
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setViewingModulos(c);
-                    loadCarreraModulos(c.id);
-                  }}
-                >
-                  <Layers size={13} />
-                  Ver Módulos
-                </button>
-
-                {c.created_by && (
-                  <div style={{ fontSize: 10, color: "rgba(42,109,181,0.45)", borderTop: "1px solid rgba(42,109,181,0.08)", paddingTop: 8 }}>
-                    Creado por: {c.created_by}
-                  </div>
-                )}
               </div>
             ))}
           </div>
