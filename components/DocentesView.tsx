@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronDown, Calendar, Save, Plus, CheckSquare, Square, Layers, User, Edit, Search, X, Clock } from "lucide-react";
+import { ChevronLeft, ChevronDown, Calendar, Save, Plus, CheckSquare, Square, Layers, User, Edit, Search, X, Clock, Folder, Grid } from "lucide-react";
 import AlertDialog from "./AlertDialog";
 import Modal from "./Modal";
 import ReporteModuloBtn from "./ReporteModuloBtn";
@@ -44,6 +44,8 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(6);
+  const [viewMode, setViewMode] = useState<"folders" | "flat">("folders");
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [allAsistencias, setAllAsistencias] = useState<any[]>([]);
   const [loadingReporte, setLoadingReporte] = useState(false);
   const [filterDocente, setFilterDocente] = useState("");
@@ -315,14 +317,38 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
         return c.nombre.toLowerCase().includes(q) ||
           (m.nombre || "").toLowerCase().includes(q) ||
           (m.carreras?.nombre || "").toLowerCase().includes(q) ||
+          (m.aula || "").toLowerCase().includes(q) ||
           docName.includes(q);
       });
 
-    const totalItems = filteredCursos.length;
+    // Group courses by classroom (aula)
+    const coursesByAula: Record<string, any[]> = {};
+    filteredCursos.forEach(c => {
+      const aulaKey = c.modulos?.aula?.trim() ? c.modulos.aula.trim().toUpperCase() : "SIN AULA";
+      if (!coursesByAula[aulaKey]) {
+        coursesByAula[aulaKey] = [];
+      }
+      coursesByAula[aulaKey].push(c);
+    });
+
+    const folderNames = Object.keys(coursesByAula).sort((a, b) => {
+      if (a === "SIN AULA") return 1;
+      if (b === "SIN AULA") return -1;
+      return a.localeCompare(b);
+    });
+
+    const coursesInFolder = currentFolder ? (coursesByAula[currentFolder] || []) : [];
+
+    const totalItems = viewMode === "folders" && currentFolder !== null
+      ? coursesInFolder.length
+      : filteredCursos.length;
+
     const totalPages = Math.ceil(totalItems / pageSize);
     const activePage = Math.min(currentPage, totalPages || 1);
 
-    const paginatedCursos = filteredCursos.slice((activePage - 1) * pageSize, activePage * pageSize);
+    const paginatedCursos = viewMode === "folders" && currentFolder !== null
+      ? coursesInFolder.slice((activePage - 1) * pageSize, activePage * pageSize)
+      : filteredCursos.slice((activePage - 1) * pageSize, activePage * pageSize);
 
     return (
       <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -330,6 +356,18 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
           __html: `
           .ts-btn-enter-course:hover { background: rgba(74,179,216,0.18)!important; color: #dbeafe!important; }
           .ts-btn-alumnos:hover { background: rgba(52,211,153,0.18)!important; color: #6ee7b7!important; }
+          .ts-btn-back:hover { background: #f1f5f9!important; transform: translateY(-1px); }
+          .ts-btn-back:active { transform: translateY(0); }
+          .folder-card:hover {
+            border-color: rgba(74,179,216,.35)!important;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.4);
+            background: rgba(8,16,34,0.95)!important;
+          }
+          .folder-card:hover svg {
+            color: #38bdf8!important;
+            transform: scale(1.05);
+          }
         `}} />
         <AlertDialog open={alertInfo.open} type={alertInfo.type} message={alertInfo.message} onClose={() => setAlertInfo(p => ({ ...p, open: false }))} />
 
@@ -358,7 +396,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 placeholder={docenteId ? "Buscar curso, módulo o carrera…" : "Buscar módulo o carrera…"}
                 style={{ ...inpStyle, paddingLeft: 38, fontSize: 13, height: 40 }}
                 value={searchQuery}
-                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); setCurrentFolder(null); }}
               />
             </div>
 
@@ -368,7 +406,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 <select
                   style={{ ...inpStyle, width: 220, paddingRight: 32, cursor: "pointer", height: 40, fontSize: 12 }}
                   value={filterDocente}
-                  onChange={e => { setFilterDocente(e.target.value); setCurrentPage(1); }}
+                  onChange={e => { setFilterDocente(e.target.value); setCurrentPage(1); setCurrentFolder(null); }}
                 >
                   <option value="">Todos los docentes</option>
                   {docentes.map(d => (
@@ -386,7 +424,7 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 type="date"
                 style={{ ...inpStyle, width: 130, height: 40, fontSize: 11, padding: "0 8px", cursor: "pointer" }}
                 value={filterStartDate}
-                onChange={e => { setFilterStartDate(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setFilterStartDate(e.target.value); setCurrentPage(1); setCurrentFolder(null); }}
               />
             </div>
 
@@ -397,14 +435,14 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 type="date"
                 style={{ ...inpStyle, width: 130, height: 40, fontSize: 11, padding: "0 8px", cursor: "pointer" }}
                 value={filterEndDate}
-                onChange={e => { setFilterEndDate(e.target.value); setCurrentPage(1); }}
+                onChange={e => { setFilterEndDate(e.target.value); setCurrentPage(1); setCurrentFolder(null); }}
               />
             </div>
 
             {/* Botón de limpiar filtros */}
             {(filterStartDate || filterEndDate || filterDocente) && (
               <button
-                onClick={() => { setFilterStartDate(""); setFilterEndDate(""); setFilterDocente(""); setCurrentPage(1); }}
+                onClick={() => { setFilterStartDate(""); setFilterEndDate(""); setFilterDocente(""); setCurrentPage(1); setCurrentFolder(null); }}
                 style={{
                   background: "rgba(248,113,113,0.1)",
                   border: "1px solid rgba(248,113,113,0.2)",
@@ -425,6 +463,50 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
                 LIMPIAR FILTROS
               </button>
             )}
+
+            {/* Toggle View Mode */}
+            <div style={{ display: "flex", gap: 2, background: "rgba(10,22,44,0.7)", padding: "4px", borderRadius: 10, border: "1px solid rgba(42,109,181,0.22)", height: 40, alignItems: "center", boxSizing: "border-box", marginLeft: "auto" }}>
+              <button
+                type="button"
+                title="Vista de Carpetas (Aulas)"
+                onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentPage(1); }}
+                style={{
+                  background: viewMode === "folders" ? "rgba(42,109,181,0.25)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  width: 32,
+                  height: 30,
+                  color: viewMode === "folders" ? "#4ab3d8" : "rgba(120, 160, 210, 0.6)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s"
+                }}
+              >
+                <Folder size={15} />
+              </button>
+              <button
+                type="button"
+                title="Vista Plana (Cuadrícula)"
+                onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentPage(1); }}
+                style={{
+                  background: viewMode === "flat" ? "rgba(42,109,181,0.25)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  width: 32,
+                  height: 30,
+                  color: viewMode === "flat" ? "#4ab3d8" : "rgba(120, 160, 210, 0.6)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s"
+                }}
+              >
+                <Grid size={15} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -438,148 +520,238 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
             <p style={{ fontSize: 13 }}>No se encontraron elementos que coincidan con la búsqueda</p>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>
-            {paginatedCursos.map(c => {
-              const m = c.modulos || {};
-              const doc = c.docentes || {};
-              const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
-
-              let diffDays = 0;
-              if (m.fecha_fin) {
-                const hoy = new Date();
-                hoy.setHours(0, 0, 0, 0);
-                const fin = new Date(m.fecha_fin + "T00:00:00");
-                const diffTime = fin.getTime() - hoy.getTime();
-                diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              }
-
-              return (
-                <div key={c.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }}
-                  onClick={() => {
-                    setSelectedModulo(m);
-                    setSelectedCursoId(c.id);
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Breadcrumb if inside folder */}
+            {viewMode === "folders" && currentFolder !== null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <button
+                  onClick={() => { setCurrentFolder(null); setCurrentPage(1); }}
+                  className="ts-btn-back"
+                  style={{
+                    background: "#ffffff", border: "none", borderRadius: 10,
+                    padding: "8px 14px", color: "#0f172a", fontSize: 12,
+                    fontWeight: 700, cursor: "pointer", display: "inline-flex",
+                    alignItems: "center", gap: 6, transition: "all 0.2s"
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
-                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
+                >
+                  <ChevronLeft size={14} style={{ strokeWidth: 2.5 }} />
+                  <span>Volver a Aulas</span>
+                </button>
+                <span style={{ fontSize: 12, color: "rgba(74,179,216,0.5)" }}>/</span>
+                <span style={{
+                  fontSize: 12,
+                  color: "#4ab3d8",
+                  fontWeight: 700,
+                  background: "rgba(74,179,216,0.08)",
+                  padding: "6px 12px",
+                  border: "1px solid rgba(74,179,216,0.18)",
+                  borderRadius: 6,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5
+                }}>
+                  AULA: {currentFolder}
+                </span>
+              </div>
+            )}
 
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{(m.modalidad || "").toUpperCase()}</span>
-                      <span style={{
-                        fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: 0.5,
-                        background: isFinished ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
-                        color: isFinished ? "#94a3b8" : "#34d399"
+            {viewMode === "folders" && currentFolder === null ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+                {folderNames.map(folderName => {
+                  const count = coursesByAula[folderName].length;
+                  return (
+                    <div
+                      key={folderName}
+                      className="folder-card"
+                      onClick={() => {
+                        setCurrentFolder(folderName);
+                        setCurrentPage(1);
+                      }}
+                      style={{
+                        ...cardStyle,
+                        padding: "20px 24px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 16,
+                        cursor: "pointer",
+                        transition: "all 0.2s ease-in-out",
+                      }}
+                    >
+                      <div style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 10,
+                        background: "rgba(59, 130, 246, 0.12)",
+                        border: "1px solid rgba(59, 130, 246, 0.25)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0
                       }}>
-                        {isFinished ? "FINALIZADO" : "EN CURSO"}
-                      </span>
-                      {!isFinished && m.fecha_fin && (
-                        <>
-                          {diffDays > 0 ? (
-                            <span style={{
-                              fontSize: 10,
-                              padding: "3px 8px",
-                              borderRadius: 20,
-                              fontWeight: 700,
-                              background: diffDays <= 7 ? "rgba(245,158,11,0.15)" : "rgba(59,130,246,0.12)",
-                              color: diffDays <= 7 ? "#fbbf24" : "#60a5fa",
-                              border: diffDays <= 7 ? "1px solid rgba(245,158,11,0.22)" : "1px solid rgba(59,130,246,0.18)",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4
-                            }}>
-                              <Clock size={10} style={{ flexShrink: 0 }} />
-                              FALTAN {diffDays} {diffDays === 1 ? "DÍA" : "DÍAS"}
-                            </span>
-                          ) : diffDays === 0 ? (
-                            <span style={{
-                              fontSize: 10,
-                              padding: "3px 8px",
-                              borderRadius: 20,
-                              fontWeight: 700,
-                              background: "rgba(239,68,68,0.15)",
-                              color: "#f87171",
-                              border: "1px solid rgba(239,68,68,0.22)",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4
-                            }}>
-                              <Clock size={10} style={{ flexShrink: 0 }} />
-                              TERMINA HOY
-                            </span>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    {m.carreras && (
-                      <div style={{ marginBottom: 6 }}>
-                        <span style={carreraBadgeStyle(m.carreras.nombre)}>
-                          {m.carreras.nombre.toUpperCase()}
-                        </span>
+                        <Folder size={22} style={{ color: "#60a5fa" }} />
                       </div>
-                    )}
-                    <div style={{ marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(42,109,181,0.18)", border: "1px solid rgba(42,109,181,0.3)", color: "rgba(120,160,210,0.9)", fontWeight: 600 }}>
-                        MÓDULO: {(m.nombre || "").toUpperCase()}
-                      </span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={folderName}>
+                          {folderName}
+                        </div>
+                        <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.6)", marginTop: 2 }}>
+                          {count} {count === 1 ? "curso" : "cursos"}
+                        </div>
+                      </div>
                     </div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{c.nombre.toUpperCase()}</h3>
-                  </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>
+                {paginatedCursos.map(c => {
+                  const m = c.modulos || {};
+                  const doc = c.docentes || {};
+                  const isFinished = new Date().toLocaleDateString('sv-SE') > m.fecha_fin;
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> Docente: {doc.id ? `${doc.apellidos}, ${doc.nombres}` : "No asignado"}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Layers size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> Créditos: {c.creditos || 1} CR</div>
-                  </div>
+                  let diffDays = 0;
+                  if (m.fecha_fin) {
+                    const hoy = new Date();
+                    hoy.setHours(0, 0, 0, 0);
+                    const fin = new Date(m.fecha_fin + "T00:00:00");
+                    const diffTime = fin.getTime() - hoy.getTime();
+                    diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  }
 
-                  <button
-                    className="ts-btn-alumnos"
-                    style={{
-                      ...btnSecondary,
-                      marginTop: 10,
-                      width: "100%",
-                      justifyContent: "center",
-                      padding: "8px 12px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      borderRadius: 8,
-                      background: "rgba(52,211,153,0.08)",
-                      border: "1px solid rgba(52,211,153,0.18)",
-                      color: "#34d399",
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                    onClick={() => {
-                      setSelectedModulo(m);
-                      setSelectedCursoId(c.id);
-                    }}
-                  >
-                    VER ALUMNOS DEL CURSO
-                  </button>
+                  return (
+                    <div key={c.id} style={{ ...cardStyle, padding: 20, cursor: "pointer", transition: "all .2s", display: "flex", flexDirection: "column", gap: 10 }}
+                      onClick={() => {
+                        setSelectedModulo(m);
+                        setSelectedCursoId(c.id);
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(74,179,216,0.5)"}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(42,109,181,0.18)"}>
 
-                  <ReporteCursoBtn
-                    cursoId={c.id}
-                    moduloId={m.id}
-                    text="DESCARGAR REPORTE"
-                    style={{
-                      marginTop: 8,
-                      width: "100%",
-                      justifyContent: "center",
-                      padding: "8px 12px",
-                      height: "auto",
-                      borderRadius: 8,
-                      background: "rgba(251,191,36,0.08)",
-                      border: "1px solid rgba(251,191,36,0.18)",
-                      color: "#fbbf24",
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  />
-                </div>
-              );
-            })}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                          <span style={{ fontSize: 10, padding: "3px 8px", borderRadius: 20, background: "rgba(74,179,216,0.15)", color: "#4ab3d8", fontWeight: 600 }}>{(m.modalidad || "").toUpperCase()}</span>
+                          <span style={{
+                            fontSize: 10, padding: "3px 8px", borderRadius: 20, fontWeight: 700, letterSpacing: 0.5,
+                            background: isFinished ? "rgba(148,163,184,0.15)" : "rgba(52,211,153,0.15)",
+                            color: isFinished ? "#94a3b8" : "#34d399"
+                          }}>
+                            {isFinished ? "FINALIZADO" : "EN CURSO"}
+                          </span>
+                          {!isFinished && m.fecha_fin && (
+                            <>
+                              {diffDays > 0 ? (
+                                <span style={{
+                                  fontSize: 10,
+                                  padding: "3px 8px",
+                                  borderRadius: 20,
+                                  fontWeight: 700,
+                                  background: diffDays <= 7 ? "rgba(245,158,11,0.15)" : "rgba(59,130,246,0.12)",
+                                  color: diffDays <= 7 ? "#fbbf24" : "#60a5fa",
+                                  border: diffDays <= 7 ? "1px solid rgba(245,158,11,0.22)" : "1px solid rgba(59,130,246,0.18)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4
+                                }}>
+                                  <Clock size={10} style={{ flexShrink: 0 }} />
+                                  FALTAN {diffDays} {diffDays === 1 ? "DÍA" : "DÍAS"}
+                                </span>
+                              ) : diffDays === 0 ? (
+                                <span style={{
+                                  fontSize: 10,
+                                  padding: "3px 8px",
+                                  borderRadius: 20,
+                                  fontWeight: 700,
+                                  background: "rgba(239,68,68,0.15)",
+                                  color: "#f87171",
+                                  border: "1px solid rgba(239,68,68,0.22)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4
+                                }}>
+                                  <Clock size={10} style={{ flexShrink: 0 }} />
+                                  TERMINA HOY
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        {m.carreras && (
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={carreraBadgeStyle(m.carreras.nombre)}>
+                              {m.carreras.nombre.toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(42,109,181,0.18)", border: "1px solid rgba(42,109,181,0.3)", color: "rgba(120,160,210,0.9)", fontWeight: 600 }}>
+                            MÓDULO: {(m.nombre || "").toUpperCase()}
+                          </span>
+                          {m.aula && (
+                            <span style={{ fontSize: 10, marginLeft: 6, padding: "2px 6px", borderRadius: 4, background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.25)", color: "#60a5fa", fontWeight: 600 }}>
+                              AULA: {m.aula.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#dbeafe", margin: 0, lineHeight: 1.3 }}>{c.nombre.toUpperCase()}</h3>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "rgba(120,160,210,0.7)", marginTop: "auto", paddingTop: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Calendar size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> {m.fecha_inicio} al {m.fecha_fin}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><User size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> Docente: {doc.id ? `${doc.apellidos}, ${doc.nombres}` : "No asignado"}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><Layers size={12} style={{ color: "rgba(74,179,216,0.5)", flexShrink: 0 }} /> Créditos: {c.creditos || 1} CR</div>
+                      </div>
+
+                      <button
+                        className="ts-btn-alumnos"
+                        style={{
+                          ...btnSecondary,
+                          marginTop: 10,
+                          width: "100%",
+                          justifyContent: "center",
+                          padding: "8px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          borderRadius: 8,
+                          background: "rgba(52,211,153,0.08)",
+                          border: "1px solid rgba(52,211,153,0.18)",
+                          color: "#34d399",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                        onClick={() => {
+                          setSelectedModulo(m);
+                          setSelectedCursoId(c.id);
+                        }}
+                      >
+                        VER ALUMNOS DEL CURSO
+                      </button>
+
+                      <ReporteCursoBtn
+                        cursoId={c.id}
+                        moduloId={m.id}
+                        text="DESCARGAR REPORTE"
+                        style={{
+                          marginTop: 8,
+                          width: "100%",
+                          justifyContent: "center",
+                          padding: "8px 12px",
+                          height: "auto",
+                          borderRadius: 8,
+                          background: "rgba(251,191,36,0.08)",
+                          border: "1px solid rgba(251,191,36,0.18)",
+                          color: "#fbbf24",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

@@ -95,10 +95,21 @@ export default async function ReporteMatriculaPage({ searchParams }: { searchPar
           <div className="logo-box">
             <img src="/img/logo.png" alt="Tecsur Logo" style={{ height: 85, objectFit: "contain" }} />
           </div>
-          <div style={{ textAlign: "right" }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 4 }}>CONSTANCIA DE MATRÍCULA</h2>
-            <p style={{ fontSize: 12, color: "#6b7280" }}>{new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-            <p style={{ fontSize: 12, color: "#2563eb", fontWeight: 700, marginTop: 4 }}>CÓD: {matricula.id.split("-")[0].toUpperCase()}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{ textAlign: "right" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: "#111827", marginBottom: 4 }}>CONSTANCIA DE MATRÍCULA</h2>
+              <p style={{ fontSize: 12, color: "#6b7280" }}>{new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p style={{ fontSize: 12, color: "#2563eb", fontWeight: 700, marginTop: 4 }}>CÓD: {matricula.id.split("-")[0].toUpperCase()}</p>
+            </div>
+            <div style={{ border: "1px solid #d1d5db", padding: 4, borderRadius: 6, background: "#fff", display: "inline-block", flexShrink: 0 }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=85x85&data=${encodeURIComponent(
+                  `TECSUR Constancia Matrícula\nEstudiante: ${matricula.alumnos.apellidos}, ${matricula.alumnos.nombres}\nDNI: ${matricula.alumnos.dni}\nMódulo: ${matricula.modulos.nombre}\nCódigo: ${matricula.id}`
+                )}`} 
+                alt="QR Verificación" 
+                style={{ width: 85, height: 85, display: "block" }} 
+              />
+            </div>
           </div>
         </div>
 

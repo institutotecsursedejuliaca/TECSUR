@@ -140,13 +140,24 @@ export default async function ReporteHistorialPage({ searchParams }: { searchPar
       </div>
 
       <div className="a4-container">
-        <div className="header-section">
+        <div className="header-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div className="logo-box">
             <img src="/img/logo.png" alt="Tecsur Logo" />
           </div>
-          <div>
-            <h1 className="institution-title">TECSUR</h1>
-            <h2 className="record-title">RECORD ACADÉMICO</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+            <div style={{ textAlign: "right" }}>
+              <h1 className="institution-title">TECSUR</h1>
+              <h2 className="record-title">RECORD ACADÉMICO</h2>
+            </div>
+            <div style={{ border: "1px solid #0066cc", padding: 3, borderRadius: 4, background: "#fff", display: "inline-block", flexShrink: 0 }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=${encodeURIComponent(
+                  `TECSUR Record Académico\nEstudiante: ${alumno.apellidos}, ${alumno.nombres}\nCódigo/DNI: ${alumno.codigo || alumno.dni}\nEspecialidad: ${alumno.carrera || "No asignada"}`
+                )}`} 
+                alt="QR Verificación" 
+                style={{ width: 70, height: 70, display: "block" }} 
+              />
+            </div>
           </div>
         </div>
 

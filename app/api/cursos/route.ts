@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("cursos")
-    .select("*, modulos(id, nombre, fecha_inicio, fecha_fin, modalidad, carreras(id, nombre)), docentes(id, nombres, apellidos)")
+    .select("*, modulos(id, nombre, fecha_inicio, fecha_fin, modalidad, aula, carreras(id, nombre)), docentes(id, nombres, apellidos)")
     .order("orden", { ascending: true });
 
   if (moduloId) query = query.eq("modulo_id", moduloId);
