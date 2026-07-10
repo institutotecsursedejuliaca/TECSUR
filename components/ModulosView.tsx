@@ -93,9 +93,11 @@ export default function ModulosView({
   const [filterEndDate, setFilterEndDate] = useState("");
   const [viewMode, setViewMode] = useState<"folders" | "flat">("folders");
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [currentSubFolder, setCurrentSubFolder] = useState<string | null>(null);
 
   function handleSelectFolder(folderName: string) {
     setCurrentFolder(folderName);
+    setCurrentSubFolder(null);
     setPageMod(1);
   }
 
@@ -144,7 +146,7 @@ export default function ModulosView({
   const [changeDocenteId, setChangeDocenteId] = useState<string>("");
   const [submittingChangeDocente, setSubmittingChangeDocente] = useState(false);
 
-  useEffect(() => { loadCarreras(); loadModulos(); setCurrentFolder(null); }, [carreraId]);
+  useEffect(() => { loadCarreras(); loadModulos(); setCurrentFolder(null); setCurrentSubFolder(null); }, [carreraId]);
 
   async function loadModulos() {
     setLoading(true);
@@ -230,6 +232,17 @@ export default function ModulosView({
       horario: m.horario ?? ""
     });
     setShowForm(false);
+  }
+
+  function handleOpenNewModulo() {
+    setEditTarget(null);
+    setForm({
+      ...emptyForm,
+      carrera_id: carreraId || "",
+      aula: (currentFolder && currentFolder !== "SIN AULA") ? currentFolder : "",
+      nombre: currentSubFolder || ""
+    });
+    setShowForm(true);
   }
 
   // Obtener sugerencias según carrera seleccionada
@@ -1566,15 +1579,37 @@ export default function ModulosView({
 
   const modulesInFolder = currentFolder ? (modulesByAula[currentFolder] || []) : [];
 
-  const totalPagesMod = viewMode === "folders" && currentFolder !== null
-    ? Math.ceil(modulesInFolder.length / pageSizeMod)
-    : Math.ceil(filteredModulos.length / pageSizeMod);
+  // Group modules in the current folder by module name (sub-folder)
+  const modulesBySubFolder: Record<string, Modulo[]> = {};
+  modulesInFolder.forEach(m => {
+    const subFolderKey = m.nombre?.trim() ? m.nombre.trim() : "SIN NOMBRE";
+    if (!modulesBySubFolder[subFolderKey]) {
+      modulesBySubFolder[subFolderKey] = [];
+    }
+    modulesBySubFolder[subFolderKey].push(m);
+  });
+
+  const subFolderNames = Object.keys(modulesBySubFolder).sort((a, b) => {
+    if (a === "SIN NOMBRE") return 1;
+    if (b === "SIN NOMBRE") return -1;
+    return a.localeCompare(b);
+  });
+
+  const modulesInSubFolder = currentSubFolder ? (modulesBySubFolder[currentSubFolder] || []) : [];
+
+  const totalPagesMod = viewMode === "folders" && currentFolder !== null && currentSubFolder !== null
+    ? Math.ceil(modulesInSubFolder.length / pageSizeMod)
+    : viewMode === "flat"
+      ? Math.ceil(filteredModulos.length / pageSizeMod)
+      : 1;
 
   const currentPageMod = Math.min(pageMod, totalPagesMod || 1);
 
-  const paginatedModulos = viewMode === "folders" && currentFolder !== null
-    ? modulesInFolder.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
-    : filteredModulos.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod);
+  const paginatedModulos = viewMode === "folders" && currentFolder !== null && currentSubFolder !== null
+    ? modulesInSubFolder.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
+    : viewMode === "flat"
+      ? filteredModulos.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
+      : [];
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1709,7 +1744,7 @@ export default function ModulosView({
             <button
               type="button"
               title="Vista de Carpetas (Aulas)"
-              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
               style={{
                 background: viewMode === "folders" ? "rgba(42,109,181,0.25)" : "transparent",
                 border: "none",
@@ -1729,7 +1764,7 @@ export default function ModulosView({
             <button
               type="button"
               title="Vista Plana (Cuadrícula)"
-              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
               style={{
                 background: viewMode === "flat" ? "rgba(42,109,181,0.25)" : "transparent",
                 border: "none",
@@ -1748,7 +1783,7 @@ export default function ModulosView({
             </button>
           </div>
 
-          <button style={btnP} onClick={() => { setShowForm(!showForm); setEditTarget(null); setForm({ ...emptyForm, carrera_id: carreraId || "" }); }}>
+          <button style={btnP} onClick={handleOpenNewModulo}>
             <Plus size={14} /> Nuevo Módulo
           </button>
         </div>
@@ -1893,7 +1928,7 @@ export default function ModulosView({
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <button
                 type="button"
-                onClick={() => setCurrentFolder(null)}
+                onClick={() => { setCurrentFolder(null); setCurrentSubFolder(null); }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -1921,20 +1956,46 @@ export default function ModulosView({
                 <span>Módulos</span>
               </button>
               <span style={{ color: "rgba(74, 179, 216, 0.45)" }}>/</span>
-              <span style={{
-                fontSize: 13,
-                fontWeight: 700,
-                color: "#4ab3d8",
-                padding: "4px 8px",
-                background: "rgba(74, 179, 216, 0.08)",
-                border: "1px solid rgba(74, 179, 216, 0.18)",
-                borderRadius: 6,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5
-              }}>
-                {currentFolder}
-              </span>
+              <button
+                type="button"
+                disabled={currentSubFolder === null}
+                onClick={() => setCurrentSubFolder(null)}
+                style={{
+                  background: currentSubFolder === null ? "rgba(74, 179, 216, 0.08)" : "transparent",
+                  border: currentSubFolder === null ? "1px solid rgba(74, 179, 216, 0.18)" : "none",
+                  color: currentSubFolder === null ? "#4ab3d8" : "rgba(120, 160, 210, 0.7)",
+                  fontSize: 13,
+                  fontWeight: currentSubFolder === null ? 700 : 600,
+                  cursor: currentSubFolder === null ? "default" : "pointer",
+                  padding: "4px 8px",
+                  borderRadius: 6,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  transition: "all 0.2s"
+                }}
+              >
+                <span>{currentFolder}</span>
+              </button>
+              {currentSubFolder !== null && (
+                <>
+                  <span style={{ color: "rgba(74, 179, 216, 0.45)" }}>/</span>
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#4ab3d8",
+                    padding: "4px 8px",
+                    background: "rgba(74, 179, 216, 0.08)",
+                    border: "1px solid rgba(74, 179, 216, 0.18)",
+                    borderRadius: 6,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}>
+                    {currentSubFolder}
+                  </span>
+                </>
+              )}
             </div>
           )}
 
@@ -1976,6 +2037,50 @@ export default function ModulosView({
                       </div>
                       <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.6)", marginTop: 2 }}>
                         {count} {count === 1 ? "módulo" : "módulos"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : viewMode === "folders" && currentFolder !== null && currentSubFolder === null ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+              {subFolderNames.map(subFolderName => {
+                const count = modulesBySubFolder[subFolderName].length;
+                return (
+                  <div
+                    key={subFolderName}
+                    className="folder-card"
+                    onClick={() => { setCurrentSubFolder(subFolderName); setPageMod(1); }}
+                    style={{
+                      ...card,
+                      padding: "20px 24px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 16,
+                      cursor: "pointer",
+                      transition: "all 0.2s ease-in-out",
+                    }}
+                  >
+                    <div style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: "rgba(16, 185, 129, 0.12)",
+                      border: "1px solid rgba(16, 185, 129, 0.25)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}>
+                      <Folder size={22} style={{ color: "#10b981" }} />
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={subFolderName}>
+                        {subFolderName}
+                      </div>
+                      <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.6)", marginTop: 2 }}>
+                        {count} {count === 1 ? "grupo" : "grupos"}
                       </div>
                     </div>
                   </div>
@@ -2105,10 +2210,10 @@ export default function ModulosView({
           )}
 
           {/* Paginación de módulos */}
-          {(viewMode === "flat" || currentFolder !== null) && totalPagesMod > 1 && (
+          {((viewMode === "flat") || (viewMode === "folders" && currentFolder !== null && currentSubFolder !== null)) && totalPagesMod > 1 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "0 4px", flexWrap: "wrap", gap: 10 }}>
               <span style={{ fontSize: 12.5, color: "rgba(120,160,210,0.6)" }}>
-                Mostrando {paginatedModulos.length} de {viewMode === "folders" && currentFolder !== null ? modulesInFolder.length : filteredModulos.length} módulos
+                Mostrando {paginatedModulos.length} de {viewMode === "folders" && currentFolder !== null && currentSubFolder !== null ? modulesInSubFolder.length : filteredModulos.length} módulos
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button
