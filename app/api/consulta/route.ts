@@ -45,10 +45,22 @@ export async function GET(request: NextRequest) {
 
   // Get notas_cursos and asistencias for each matricula (only if enrolled in any module)
   const matriculaIds = (matriculas ?? []).map((m) => m.id);
+  const moduloIds = (matriculas ?? []).map((m) => m.modulo_id).filter(Boolean);
   let notas_cursos: any[] = [];
   let asistencias: any[] = [];
+  let cursosData: any[] = [];
 
   if (matriculaIds.length > 0) {
+    const { data: cData, error: cError } = await supabase
+      .from("cursos")
+      .select("id, nombre, orden, modulo_id")
+      .in("modulo_id", moduloIds);
+
+    if (cError) {
+      return Response.json({ error: `Error al obtener cursos: ${cError.message}` }, { status: 500 });
+    }
+    cursosData = cData || [];
+
     const { data: notasData, error: notasError } = await supabase
       .from("notas_cursos")
       .select(`
@@ -97,11 +109,24 @@ export async function GET(request: NextRequest) {
   const modulosConNotas = (matriculas ?? []).map((mat) => {
     const notasDelModulo = (notas_cursos ?? []).filter((n) => n.matricula_id === mat.id);
     const asistenciasDelModulo = (asistencias ?? []).filter((a) => a.matricula_id === mat.id);
-    
-    // Sort courses by orden
-    notasDelModulo.sort((a, b) => {
-      const cursoA = Array.isArray(a.cursos) ? a.cursos[0] : a.cursos;
-      const cursoB = Array.isArray(b.cursos) ? b.cursos[0] : b.cursos;
+    const cursosDelModulo = (cursosData ?? []).filter((c) => c.modulo_id === mat.modulo_id);
+
+    // Build the course list including grades if present, otherwise null
+    const notas_cursosMapped = cursosDelModulo.map((c) => {
+      const notaObj = notasDelModulo.find((n) => n.curso_id === c.id);
+      return {
+        curso_id: c.id,
+        nota: notaObj ? notaObj.nota : null,
+        cursos: {
+          nombre: c.nombre
+        }
+      };
+    });
+
+    // Sort by order
+    notas_cursosMapped.sort((a, b) => {
+      const cursoA = cursosDelModulo.find(c => c.id === a.curso_id);
+      const cursoB = cursosDelModulo.find(c => c.id === b.curso_id);
       const orderA = cursoA?.orden ?? 99;
       const orderB = cursoB?.orden ?? 99;
       return orderA - orderB;
@@ -115,7 +140,7 @@ export async function GET(request: NextRequest) {
       matricula_id: mat.id,
       fecha_registro: mat.fecha_registro,
       modulo: mat.modulos,
-      notas_cursos: notasDelModulo,
+      notas_cursos: notas_cursosMapped,
       asistencia_total
     };
   });

@@ -16,10 +16,18 @@ import {
   Layers,
   Calendar,
   AlertTriangle,
-  ChevronLeft
+  ChevronLeft,
+  Folder,
+  FolderOpen,
+  ChevronDown,
+  ChevronRight,
+  Grid,
+  Download,
+  Pencil
 } from "lucide-react";
 import Modal from "./Modal";
 import AlertDialog from "./AlertDialog";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface Alumno {
   id: string;
@@ -45,7 +53,16 @@ interface Pension {
 interface Matricula {
   id: string;
   modulo_id: string;
-  modulos: { id: string; nombre: string; horario: string };
+  modulos: {
+    id: string;
+    nombre: string;
+    horario?: string | null;
+    fecha_inicio?: string | null;
+    fecha_fin?: string | null;
+    modalidad?: string | null;
+    aula?: string | null;
+    local?: string | null;
+  } | null;
 }
 
 interface Cargo {
@@ -113,6 +130,10 @@ export default function PensionesView() {
   const [filterStartDateConfig, setFilterStartDateConfig] = useState("");
   const [filterEndDateConfig, setFilterEndDateConfig] = useState("");
 
+  // Agrupamiento y Carpetas
+  const [groupByConfig, setGroupByConfig] = useState<"carrera" | "aula" | "todos">("todos");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
   // Formulario de creación de Cargo
   const [showCargoForm, setShowCargoForm] = useState(false);
   const [cargoTargetModuloId, setCargoTargetModuloId] = useState<string>("");
@@ -129,6 +150,138 @@ export default function PensionesView() {
       loadAllPayments();
     }
   }, [activeTab, selectedAlumno]);
+
+  function exportPaymentsToCSV() {
+    const headers = ["Fecha Pago", "DNI", "Alumno", "Nro Recibo", "Concepto", "Modulo", "Monto Pagado", "Deuda Pendiente"];
+    const csvRows = [
+      headers.join(","),
+      ...filteredGeneralPayments.map(p => {
+        const alum = p.alumnos;
+        const studentName = alum ? `${alum.apellidos} ${alum.nombres}` : "—";
+        const studentDni = alum ? alum.dni : "—";
+        const moduloName = p.modulos?.nombre || "—";
+        const row = [
+          p.fecha_pago || "—",
+          studentDni,
+          studentName,
+          p.nro_recibo || "—",
+          p.concepto || "—",
+          moduloName,
+          p.monto_pagado.toFixed(2),
+          p.deuda_pendiente.toFixed(2)
+        ];
+        return row.map(val => {
+          const escaped = ('' + val).replace(/"/g, '""');
+          return `"${escaped}"`;
+        }).join(",");
+      })
+    ];
+    const csvContent = "\uFEFF" + csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pagos_tecsur_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // EDITAR Y ELIMINAR PAGOS
+  const [showEditPaymentForm, setShowEditPaymentForm] = useState(false);
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    id: "",
+    nro_recibo: "",
+    monto_pagado: 0,
+    deuda_pendiente: 0,
+    fecha_pago: "",
+    concepto: "PENSION" as "PENSION" | "MATRICULA" | "OTROS",
+    detalles: "",
+    modulo_nombre: ""
+  });
+  const [submittingEditPayment, setSubmittingEditPayment] = useState(false);
+  const [deletePaymentTarget, setDeletePaymentTarget] = useState<any | null>(null);
+  const [deletingPayment, setDeletingPayment] = useState(false);
+
+  function openEditPayment(p: any) {
+    setEditPaymentForm({
+      id: p.id,
+      nro_recibo: p.nro_recibo || "",
+      monto_pagado: Number(p.monto_pagado) || 0,
+      deuda_pendiente: Number(p.deuda_pendiente) || 0,
+      fecha_pago: p.fecha_pago || "",
+      concepto: p.concepto || "PENSION",
+      detalles: p.detalles || "",
+      modulo_nombre: p.modulos?.nombre || "—"
+    });
+    setShowEditPaymentForm(true);
+  }
+
+  async function handleEditPaymentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmittingEditPayment(true);
+    try {
+      const res = await fetch(`/api/pensiones/${editPaymentForm.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nro_recibo: editPaymentForm.nro_recibo,
+          monto_pagado: Number(editPaymentForm.monto_pagado),
+          deuda_pendiente: Number(editPaymentForm.deuda_pendiente),
+          fecha_pago: editPaymentForm.fecha_pago,
+          concepto: editPaymentForm.concepto,
+          detalles: editPaymentForm.detalles
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAlertInfo({ open: true, message: data.error || "Error al actualizar pago", type: "error" });
+      } else {
+        setAlertInfo({ open: true, message: "Pago actualizado correctamente", type: "success" });
+        setShowEditPaymentForm(false);
+        loadAllPayments();
+        if (selectedAlumno) {
+          const penRes = await fetch(`/api/pensiones?alumno_id=${selectedAlumno.id}`);
+          const penData = await penRes.json();
+          setPensiones(Array.isArray(penData) ? penData : []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setAlertInfo({ open: true, message: "Error al actualizar pago", type: "error" });
+    } finally {
+      setSubmittingEditPayment(false);
+    }
+  }
+
+  async function handleDeletePayment() {
+    if (!deletePaymentTarget) return;
+    setDeletingPayment(true);
+    try {
+      const res = await fetch(`/api/pensiones/${deletePaymentTarget.id}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setAlertInfo({ open: true, message: data.error || "Error al eliminar pago", type: "error" });
+      } else {
+        setAlertInfo({ open: true, message: "Pago eliminado correctamente", type: "success" });
+        setDeletePaymentTarget(null);
+        loadAllPayments();
+        if (selectedAlumno) {
+          const penRes = await fetch(`/api/pensiones?alumno_id=${selectedAlumno.id}`);
+          const penData = await penRes.json();
+          setPensiones(Array.isArray(penData) ? penData : []);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setAlertInfo({ open: true, message: "Error al eliminar pago", type: "error" });
+    } finally {
+      setDeletingPayment(false);
+    }
+  }
 
   // Cargar datos de configuración cuando se active la pestaña de configuración
   useEffect(() => {
@@ -490,6 +643,35 @@ export default function PensionesView() {
     return true;
   });
 
+  // Agrupar módulos de manera jerárquica (Carrera -> Aula o Aula -> Carrera)
+  const nestedGroupedModulos: Record<string, Record<string, any[]>> = {};
+  if (groupByConfig === "carrera") {
+    filteredModulosConfig.forEach(m => {
+      const topKey = m.carreras?.nombre?.trim() || "Sin Carrera Especificada";
+      const subKey = m.aula?.trim() || "Sin Aula Especificada";
+      if (!nestedGroupedModulos[topKey]) nestedGroupedModulos[topKey] = {};
+      if (!nestedGroupedModulos[topKey][subKey]) nestedGroupedModulos[topKey][subKey] = [];
+      nestedGroupedModulos[topKey][subKey].push(m);
+    });
+  } else if (groupByConfig === "aula") {
+    filteredModulosConfig.forEach(m => {
+      const topKey = m.aula?.trim() || "Sin Aula Especificada";
+      const subKey = m.carreras?.nombre?.trim() || "Sin Carrera Especificada";
+      if (!nestedGroupedModulos[topKey]) nestedGroupedModulos[topKey] = {};
+      if (!nestedGroupedModulos[topKey][subKey]) nestedGroupedModulos[topKey][subKey] = [];
+      nestedGroupedModulos[topKey][subKey].push(m);
+    });
+  }
+
+  // Ordenar módulos por fecha_inicio descendente (fechas más recientes primero)
+  Object.keys(nestedGroupedModulos).forEach(topKey => {
+    Object.keys(nestedGroupedModulos[topKey]).forEach(subKey => {
+      nestedGroupedModulos[topKey][subKey].sort((a, b) => {
+        return (b.fecha_inicio || "").localeCompare(a.fecha_inicio || "");
+      });
+    });
+  });
+
   // ── CÁLCULOS FINANCIEROS DE LA LISTA DE PAGOS DEL ALUMNO CONSULTADO ──
   let deudaTotal = 0;
   const pagadoPorModulo: Record<string, number> = {};
@@ -722,6 +904,29 @@ export default function PensionesView() {
                       <XCircle size={13} /> Limpiar
                     </button>
                   )}
+
+                  {/* Botón Exportar Excel */}
+                  <button
+                    type="button"
+                    onClick={exportPaymentsToCSV}
+                    style={{
+                      background: "rgba(52,211,153,0.1)",
+                      border: "1px solid rgba(52,211,153,0.2)",
+                      color: "#34d399",
+                      height: 38,
+                      padding: "0 14px",
+                      borderRadius: 8,
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginLeft: "auto"
+                    }}
+                  >
+                    <Download size={13} /> Exportar Excel
+                  </button>
                 </div>
 
                 {loadingAllPayments ? (
@@ -744,6 +949,7 @@ export default function PensionesView() {
                             <th style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: 700 }}>MÓDULO</th>
                             <th style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: 700, textAlign: "right" }}>PAGADO</th>
                             <th style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: 700, textAlign: "right" }}>DEUDA REST.</th>
+                            <th style={{ padding: "14px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", fontWeight: 700, textAlign: "center" }}>ACCIONES</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -780,6 +986,26 @@ export default function PensionesView() {
                                 <td style={{ padding: "14px 20px", color: "#fff", fontWeight: 700, textAlign: "right" }}>S/ {p.monto_pagado.toFixed(2)}</td>
                                 <td style={{ padding: "14px 20px", color: p.deuda_pendiente > 0 ? "#f87171" : "rgba(255,255,255,0.3)", fontWeight: 700, textAlign: "right" }}>
                                   {p.deuda_pendiente > 0 ? `S/ ${p.deuda_pendiente.toFixed(2)}` : "AL DÍA"}
+                                </td>
+                                <td style={{ padding: "14px 20px", textAlign: "center" }}>
+                                  <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditPayment(p)}
+                                      style={{ background: "transparent", border: "none", cursor: "pointer", color: "#60a5fa" }}
+                                      title="Editar Pago"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeletePaymentTarget(p)}
+                                      style={{ background: "transparent", border: "none", cursor: "pointer", color: "#f87171" }}
+                                      title="Eliminar Pago"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -987,6 +1213,7 @@ export default function PensionesView() {
                           <th style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)", fontWeight: 700 }}>MÓDULO</th>
                           <th style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)", fontWeight: 700, textAlign: "right" }}>PAGADO</th>
                           <th style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)", fontWeight: 700, textAlign: "right" }}>DEUDA REST.</th>
+                          <th style={{ padding: 14, borderBottom: "1px solid rgba(255,255,255,0.08)", fontWeight: 700, textAlign: "center" }}>ACCIONES</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1017,11 +1244,31 @@ export default function PensionesView() {
                             <td style={{ padding: 14, color: p.deuda_pendiente > 0 ? "#f87171" : "rgba(255,255,255,0.3)", fontWeight: 700, textAlign: "right" }}>
                               {p.deuda_pendiente > 0 ? `S/ ${p.deuda_pendiente.toFixed(2)}` : "AL DÍA"}
                             </td>
+                            <td style={{ padding: 14, textAlign: "center" }}>
+                              <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditPayment(p)}
+                                  style={{ background: "transparent", border: "none", cursor: "pointer", color: "#60a5fa" }}
+                                  title="Editar Pago"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeletePaymentTarget(p)}
+                                  style={{ background: "transparent", border: "none", cursor: "pointer", color: "#f87171" }}
+                                  title="Eliminar Pago"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                         {pensiones.length === 0 && (
                           <tr>
-                            <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.3)", fontWeight: 500 }}>
+                            <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "rgba(255,255,255,0.3)", fontWeight: 500 }}>
                               No se registran transacciones de pago para este alumno.
                             </td>
                           </tr>
@@ -1043,9 +1290,25 @@ export default function PensionesView() {
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>MÓDULO *</label>
                 <select name="modulo_id" value={form.modulo_id} onChange={handleFormChange} required className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none" style={{ padding: "0 12px" }}>
                   <option value="">— Seleccionar Módulo —</option>
-                  {matriculas.map(m => (
-                    <option key={m.id} value={m.modulo_id}>{m.modulos?.nombre}</option>
-                  ))}
+                  {matriculas.map(m => {
+                    const mod = m.modulos;
+                    if (!mod) return null;
+                    const fInicio = mod.fecha_inicio ? new Date(mod.fecha_inicio + "T00:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }) : "";
+                    const fFin = mod.fecha_fin ? new Date(mod.fecha_fin + "T00:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }) : "";
+                    const datesStr = fInicio && fFin ? `${fInicio} a ${fFin}` : "";
+                    const details = [
+                      mod.aula ? `Aula: ${mod.aula}` : null,
+                      datesStr ? `Fechas: ${datesStr}` : null,
+                      mod.horario ? `Turno: ${mod.horario}` : null,
+                      mod.modalidad ? `Mod: ${mod.modalidad}` : null
+                    ].filter(Boolean).join(" | ");
+
+                    return (
+                      <option key={m.id} value={m.modulo_id}>
+                        {mod.nombre.toUpperCase()} {details ? `(${details})` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               
@@ -1101,11 +1364,150 @@ export default function PensionesView() {
               <div className="flex justify-end gap-3 border-t border-blue-900 border-opacity-30" style={{ paddingTop: 16 }}>
                 <button type="button" onClick={() => setShowForm(false)} className="text-xs font-bold text-blue-300 hover:text-white transition-colors" style={{ padding: "8px 16px", background: "transparent", border: "none", cursor: "pointer" }}>Cancelar</button>
                 <button type="submit" disabled={submitting} className="text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 transition-colors" style={{ padding: "8px 20px", border: "none", cursor: "pointer", borderRadius: 8 }}>
-                  <CreditCard size={14} /> {submitting ? "Guardando..." : "Confirmar Transacción"}
+                  <CreditCard size={14} /> {submitting ? "Confirmar Transacción" : "Confirmar Transacción"}
                 </button>
               </div>
             </form>
           </Modal>
+
+          {/* ── MODAL: EDITAR PAGO ── */}
+          <Modal open={showEditPaymentForm} onClose={() => setShowEditPaymentForm(false)} title={`Editar Pago (Recibo: ${editPaymentForm.nro_recibo})`} maxWidth="500px">
+            <form onSubmit={handleEditPaymentSubmit} className="space-y-4" style={{ fontFamily: "'Inter', sans-serif" }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>MÓDULO</label>
+                <input
+                  type="text"
+                  value={editPaymentForm.modulo_nombre}
+                  disabled
+                  className="w-full h-10 text-sm bg-blue-950 bg-opacity-30 border border-blue-900 border-opacity-30 rounded-lg text-gray-400 outline-none"
+                  style={{ padding: "0 12px", cursor: "not-allowed" }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>N° RECIBO *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editPaymentForm.nro_recibo}
+                    onChange={e => setEditPaymentForm(p => ({ ...p, nro_recibo: e.target.value }))}
+                    className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                    style={{ padding: "0 12px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>FECHA PAGO *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editPaymentForm.fecha_pago}
+                    onChange={e => setEditPaymentForm(p => ({ ...p, fecha_pago: e.target.value }))}
+                    className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                    style={{ padding: "0 12px", colorScheme: "dark" }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>MONTO PAGADO *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editPaymentForm.monto_pagado}
+                    onChange={e => setEditPaymentForm(p => ({ ...p, monto_pagado: Number(e.target.value) }))}
+                    className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                    style={{ padding: "0 12px" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>DEUDA RESTANTE *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={editPaymentForm.deuda_pendiente}
+                    onChange={e => setEditPaymentForm(p => ({ ...p, deuda_pendiente: Number(e.target.value) }))}
+                    className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                    style={{ padding: "0 12px" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>CONCEPTO / MOTIVO *</label>
+                <select
+                  value={editPaymentForm.concepto}
+                  onChange={e => setEditPaymentForm(p => ({ ...p, concepto: e.target.value as any }))}
+                  required
+                  className="w-full h-10 text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                  style={{ padding: "0 12px" }}
+                >
+                  <option value="PENSION">Pensión</option>
+                  <option value="MATRICULA">Matrícula</option>
+                  <option value="OTROS">Otros</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "rgba(74,179,216,0.8)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>DETALLES / COMENTARIOS</label>
+                <textarea
+                  value={editPaymentForm.detalles}
+                  onChange={e => setEditPaymentForm(p => ({ ...p, detalles: e.target.value }))}
+                  className="w-full text-sm bg-blue-950 bg-opacity-50 border border-blue-800 rounded-lg text-white outline-none"
+                  style={{ padding: "8px 12px", minHeight: 60, fontFamily: "inherit" }}
+                  placeholder="Información adicional del recibo o motivo..."
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEditPaymentForm(false)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", padding: "10px 16px",
+                    borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                    color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600, cursor: "pointer"
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingEditPayment}
+                  style={{
+                    display: "inline-flex", alignItems: "center", padding: "10px 20px",
+                    borderRadius: 8, border: "none",
+                    background: "linear-gradient(135deg,#1a4a7a 0%,#2a6db5 55%,#4ab3d8 100%)",
+                    color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    boxShadow: "0 4px 16px rgba(42,109,181,0.25)", opacity: submittingEditPayment ? 0.6 : 1
+                  }}
+                >
+                  {submittingEditPayment ? "Guardando..." : "Actualizar Pago"}
+                </button>
+              </div>
+            </form>
+          </Modal>
+
+          {/* ── DIALOG: CONFIRMAR ELIMINACIÓN DE PAGO ── */}
+          <ConfirmDialog
+            open={!!deletePaymentTarget}
+            onClose={() => setDeletePaymentTarget(null)}
+            onConfirm={handleDeletePayment}
+            loading={deletingPayment}
+            title="¿Eliminar Registro de Pago?"
+            description="Se eliminará de forma permanente el registro del recibo y se reajustará el saldo deudor del alumno en base a los cargos del módulo. Esta acción no se puede deshacer."
+          >
+            {deletePaymentTarget && (
+              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>
+                <div><strong>N° Recibo:</strong> {deletePaymentTarget.nro_recibo}</div>
+                <div style={{ marginTop: 4 }}><strong>Monto:</strong> S/ {deletePaymentTarget.monto_pagado.toFixed(2)}</div>
+                <div style={{ marginTop: 4 }}><strong>Concepto:</strong> {deletePaymentTarget.concepto}</div>
+              </div>
+            )}
+          </ConfirmDialog>
         </>
       )}
 
@@ -1133,6 +1535,85 @@ export default function PensionesView() {
                 onChange={e => setSearchModConfig(e.target.value)}
                 style={{ ...inp, paddingLeft: 36, height: 38, fontSize: 12 }}
               />
+            </div>
+
+            {/* Selector de Agrupamiento (Organización por carpetas) */}
+            <div style={{ display: "flex", gap: 6, background: "rgba(10,22,44,0.7)", padding: "4px", borderRadius: 10, border: "1px solid rgba(42,109,181,0.22)", height: 40, alignItems: "center", boxSizing: "border-box" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupByConfig("todos");
+                  setExpandedGroups({});
+                }}
+                style={{
+                  background: groupByConfig === "todos" ? "rgba(74,179,216,0.15)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 12px",
+                  height: 32,
+                  color: groupByConfig === "todos" ? "#4ab3d8" : "rgba(120, 160, 210, 0.65)",
+                  fontWeight: groupByConfig === "todos" ? 700 : 500,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+              >
+                <Grid size={13} />
+                VER TODOS (LISTA)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupByConfig("carrera");
+                  setExpandedGroups({});
+                }}
+                style={{
+                  background: groupByConfig === "carrera" ? "rgba(74,179,216,0.15)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 12px",
+                  height: 32,
+                  color: groupByConfig === "carrera" ? "#4ab3d8" : "rgba(120, 160, 210, 0.65)",
+                  fontWeight: groupByConfig === "carrera" ? 700 : 500,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+              >
+                <Folder size={13} />
+                POR CARRERA
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGroupByConfig("aula");
+                  setExpandedGroups({});
+                }}
+                style={{
+                  background: groupByConfig === "aula" ? "rgba(74,179,216,0.15)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "0 12px",
+                  height: 32,
+                  color: groupByConfig === "aula" ? "#4ab3d8" : "rgba(120, 160, 210, 0.65)",
+                  fontWeight: groupByConfig === "aula" ? 700 : 500,
+                  fontSize: 11,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+              >
+                <Folder size={13} />
+                POR AULA
+              </button>
             </div>
 
             {/* Selector de Carrera */}
@@ -1203,7 +1684,7 @@ export default function PensionesView() {
             <div style={{ padding: 40, textAlign: "center", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 12, color: "rgba(255,255,255,0.3)", fontSize: 13 }}>
               No se encontraron módulos con los filtros aplicados.
             </div>
-          ) : (
+          ) : groupByConfig === "todos" ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 20 }}>
               {filteredModulosConfig.map(m => {
                 const cargos = allCargos.filter(c => c.modulo_id === m.id);
@@ -1212,10 +1693,71 @@ export default function PensionesView() {
                 return (
                   <div key={m.id} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 20, background: "#090f1a", display: "flex", flexDirection: "column", gap: 14 }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: "#dbeafe" }}>{m.nombre.toUpperCase()}</div>
-                      <div style={{ fontSize: 10, color: "rgba(74,179,216,0.6)", marginTop: 4, fontWeight: 600, letterSpacing: "0.02em" }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre.toUpperCase()}</div>
+                      
+                      {/* Etiquetas */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+                        {/* Modalidad */}
+                        <span style={{
+                          fontSize: 8.5,
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          borderRadius: 12,
+                          textTransform: "uppercase",
+                          background: m.modalidad === "virtual" ? "rgba(139, 92, 246, 0.15)" : m.modalidad === "semipresencial" ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                          color: m.modalidad === "virtual" ? "#a78bfa" : m.modalidad === "semipresencial" ? "#fbbf24" : "#60a5fa",
+                          border: `1px solid ${m.modalidad === "virtual" ? "rgba(139, 92, 246, 0.2)" : m.modalidad === "semipresencial" ? "rgba(245, 158, 11, 0.2)" : "rgba(59, 130, 246, 0.2)"}`
+                        }}>
+                          {m.modalidad}
+                        </span>
+
+                        {/* Fechas */}
+                        {(m.fecha_inicio || m.fecha_fin) && (
+                          <span style={{
+                            fontSize: 8.5,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            borderRadius: 12,
+                            background: "rgba(255, 255, 255, 0.05)",
+                            color: "rgba(255, 255, 255, 0.6)",
+                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3
+                          }}>
+                            <Calendar size={9} />
+                            {m.fecha_inicio ? new Date(m.fecha_inicio + "T00:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : "?"} - {m.fecha_fin ? new Date(m.fecha_fin + "T00:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : "?"}
+                          </span>
+                        )}
+
+                        {/* Horario */}
+                        {m.horario && (
+                          <span style={{
+                            fontSize: 8.5,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            borderRadius: 12,
+                            background: "rgba(16, 185, 129, 0.1)",
+                            color: "#34d399",
+                            border: "1px solid rgba(16, 185, 129, 0.15)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3
+                          }}>
+                            <Clock size={9} />
+                            {m.horario}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: 9.5, color: "rgba(74,179,216,0.6)", marginTop: 8, fontWeight: 700, letterSpacing: "0.02em" }}>
                         CARRERA: {m.carreras?.nombre.toUpperCase() || "SIN CARRERA"}
                       </div>
+                      {m.aula && (
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+                          Aula: <strong style={{ color: "#fff" }}>{m.aula}</strong> {m.local ? `(${m.local})` : ""}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 12 }}>
@@ -1278,6 +1820,308 @@ export default function PensionesView() {
                     >
                       <Plus size={12} /> Agregar Concepto de Cobro
                     </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Controles para expandir/colapsar todas las carpetas */}
+              <div style={{ display: "flex", gap: 16, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next: Record<string, boolean> = {};
+                    Object.keys(nestedGroupedModulos).forEach(topKey => {
+                      next[topKey] = true;
+                      Object.keys(nestedGroupedModulos[topKey]).forEach(subKey => {
+                        next[`${topKey}::${subKey}`] = true;
+                      });
+                    });
+                    setExpandedGroups(next);
+                  }}
+                  style={{
+                    background: "transparent", border: "none", color: "#4ab3d8", fontSize: 11, cursor: "pointer", fontWeight: 600
+                  }}
+                >
+                  [+] Abrir todas las carpetas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next: Record<string, boolean> = {};
+                    Object.keys(nestedGroupedModulos).forEach(topKey => {
+                      next[topKey] = false;
+                      Object.keys(nestedGroupedModulos[topKey]).forEach(subKey => {
+                        next[`${topKey}::${subKey}`] = false;
+                      });
+                    });
+                    setExpandedGroups(next);
+                  }}
+                  style={{
+                    background: "transparent", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 11, cursor: "pointer", fontWeight: 600
+                  }}
+                >
+                  [-] Cerrar todas las carpetas
+                </button>
+              </div>
+
+              {Object.keys(nestedGroupedModulos).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).map(topKey => {
+                const subGroups = nestedGroupedModulos[topKey];
+                const isTopOpen = !!expandedGroups[topKey]; // Cerrado por defecto
+                
+                // Calcular total módulos y cargos configurados en este grupo de nivel superior
+                let totalModulesInTop = 0;
+                let totalCargosInTop = 0;
+                Object.keys(subGroups).forEach(subKey => {
+                  const subModules = subGroups[subKey];
+                  totalModulesInTop += subModules.length;
+                  subModules.forEach(m => {
+                    const cargos = allCargos.filter(c => c.modulo_id === m.id);
+                    totalCargosInTop += cargos.reduce((s, c) => s + Number(c.monto), 0);
+                  });
+                });
+
+                return (
+                  <div key={topKey} style={{ border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, background: "rgba(8,16,34,0.45)", overflow: "hidden" }}>
+                    {/* Header de la carpeta de nivel superior */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedGroups(prev => ({ ...prev, [topKey]: !isTopOpen }))}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "14px 20px", background: "rgba(255,255,255,0.02)", border: "none", cursor: "pointer",
+                        textAlign: "left", transition: "background 0.2s"
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {isTopOpen ? (
+                          <FolderOpen size={18} style={{ color: "#4ab3d8" }} />
+                        ) : (
+                          <Folder size={18} style={{ color: "#4ab3d8" }} />
+                        )}
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                            {groupByConfig === "aula" ? `AULA: ${topKey}` : `${topKey}`}
+                          </span>
+                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                            {totalModulesInTop} {totalModulesInTop === 1 ? "módulo" : "módulos"} • Cargos configurados: S/ {totalCargosInTop.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        {isTopOpen ? (
+                          <ChevronDown size={18} style={{ color: "rgba(255,255,255,0.4)" }} />
+                        ) : (
+                          <ChevronRight size={18} style={{ color: "rgba(255,255,255,0.4)" }} />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Contenido de nivel superior (Carpetas internas) */}
+                    {isTopOpen && (
+                      <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.05)", background: "rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", gap: 12 }}>
+                        {Object.keys(subGroups).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).map(subKey => {
+                          const subModules = subGroups[subKey];
+                          const subGroupFullKey = `${topKey}::${subKey}`;
+                          const isSubOpen = !!expandedGroups[subGroupFullKey]; // Cerrado por defecto
+
+                          const totalModulesInSub = subModules.length;
+                          let totalCargosInSub = 0;
+                          subModules.forEach(m => {
+                            const cargos = allCargos.filter(c => c.modulo_id === m.id);
+                            totalCargosInSub += cargos.reduce((s, c) => s + Number(c.monto), 0);
+                          });
+
+                          return (
+                            <div key={subKey} style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, background: "rgba(10,22,44,0.35)", overflow: "hidden" }}>
+                              {/* Sub-header de la carpeta */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedGroups(prev => ({ ...prev, [subGroupFullKey]: !isSubOpen }))}
+                                style={{
+                                  width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                                  padding: "10px 16px", background: "rgba(255,255,255,0.01)", border: "none", cursor: "pointer",
+                                  textAlign: "left", transition: "background 0.2s"
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.02)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0.01)"}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  {isSubOpen ? (
+                                    <FolderOpen size={16} style={{ color: "#74b9ff" }} />
+                                  ) : (
+                                    <Folder size={16} style={{ color: "#74b9ff" }} />
+                                  )}
+                                  <div>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0", textTransform: "uppercase" }}>
+                                      {groupByConfig === "carrera" ? `AULA: ${subKey}` : `${subKey}`}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginLeft: 8 }}>
+                                      ({totalModulesInSub} {totalModulesInSub === 1 ? "módulo" : "módulos"} • S/ {totalCargosInSub.toFixed(2)})
+                                    </span>
+                                  </div>
+                                </div>
+                                <div>
+                                  {isSubOpen ? (
+                                    <ChevronDown size={16} style={{ color: "rgba(255,255,255,0.3)" }} />
+                                  ) : (
+                                    <ChevronRight size={16} style={{ color: "rgba(255,255,255,0.3)" }} />
+                                  )}
+                                </div>
+                              </button>
+
+                              {/* Grid de módulos en sub-nivel */}
+                              {isSubOpen && (
+                                <div style={{ padding: 16, borderTop: "1px solid rgba(255,255,255,0.03)", background: "rgba(0,0,0,0.1)" }}>
+                                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+                                    {subModules.map(m => {
+                                      const cargos = allCargos.filter(c => c.modulo_id === m.id);
+                                      const totalCargos = cargos.reduce((s, c) => s + Number(c.monto), 0);
+
+                                      return (
+                                        <div key={m.id} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 18, background: "#090f1a", display: "flex", flexDirection: "column", gap: 12 }}>
+                                          <div>
+                                            <div style={{ fontWeight: 800, fontSize: 13.5, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre.toUpperCase()}</div>
+                                            
+                                            {/* Etiquetas */}
+                                            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 8 }}>
+                                              {/* Modalidad */}
+                                              <span style={{
+                                                fontSize: 8.5,
+                                                fontWeight: 700,
+                                                padding: "2px 6px",
+                                                borderRadius: 12,
+                                                textTransform: "uppercase",
+                                                background: m.modalidad === "virtual" ? "rgba(139, 92, 246, 0.15)" : m.modalidad === "semipresencial" ? "rgba(245, 158, 11, 0.15)" : "rgba(59, 130, 246, 0.15)",
+                                                color: m.modalidad === "virtual" ? "#a78bfa" : m.modalidad === "semipresencial" ? "#fbbf24" : "#60a5fa",
+                                                border: `1px solid ${m.modalidad === "virtual" ? "rgba(139, 92, 246, 0.2)" : m.modalidad === "semipresencial" ? "rgba(245, 158, 11, 0.2)" : "rgba(59, 130, 246, 0.2)"}`
+                                              }}>
+                                                {m.modalidad}
+                                              </span>
+
+                                              {/* Fechas */}
+                                              {(m.fecha_inicio || m.fecha_fin) && (
+                                                <span style={{
+                                                  fontSize: 8.5,
+                                                  fontWeight: 600,
+                                                  padding: "2px 6px",
+                                                  borderRadius: 12,
+                                                  background: "rgba(255, 255, 255, 0.05)",
+                                                  color: "rgba(255, 255, 255, 0.6)",
+                                                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                                                  display: "inline-flex",
+                                                  alignItems: "center",
+                                                  gap: 3
+                                                }}>
+                                                  <Calendar size={9} />
+                                                  {m.fecha_inicio ? new Date(m.fecha_inicio + "T00:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : "?"} - {m.fecha_fin ? new Date(m.fecha_fin + "T00:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : "?"}
+                                                </span>
+                                              )}
+
+                                              {/* Horario */}
+                                              {m.horario && (
+                                                <span style={{
+                                                  fontSize: 8.5,
+                                                  fontWeight: 600,
+                                                  padding: "2px 6px",
+                                                  borderRadius: 12,
+                                                  background: "rgba(16, 185, 129, 0.1)",
+                                                  color: "#34d399",
+                                                  border: "1px solid rgba(16, 185, 129, 0.15)",
+                                                  display: "inline-flex",
+                                                  alignItems: "center",
+                                                  gap: 3
+                                                }}>
+                                                  <Clock size={9} />
+                                                  {m.horario}
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <div style={{ fontSize: 9.5, color: "rgba(74,179,216,0.6)", marginTop: 8, fontWeight: 700, letterSpacing: "0.02em" }}>
+                                              CARRERA: {m.carreras?.nombre.toUpperCase() || "SIN CARRERA"}
+                                            </div>
+                                            {m.aula && (
+                                              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
+                                                Aula: <strong style={{ color: "#fff" }}>{m.aula}</strong> {m.local ? `(${m.local})` : ""}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 10 }}>
+                                            <div style={{ fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                                              <span>CONCEPTOS CONFIGURADOS</span>
+                                              <span style={{ color: "#dbeafe" }}>S/ {totalCargos.toFixed(2)}</span>
+                                            </div>
+
+                                            {cargos.length === 0 ? (
+                                              <div style={{ padding: "12px 0", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 10.5, border: "1px dashed rgba(255,255,255,0.04)", borderRadius: 8 }}>
+                                                Sin cargos. Los alumnos no acumularán deuda.
+                                              </div>
+                                            ) : (
+                                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                                {cargos.map(c => (
+                                                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 8 }}>
+                                                    <div>
+                                                      <span style={{ 
+                                                        fontSize: 8, 
+                                                        fontWeight: 700, 
+                                                        padding: "1.5px 5px", 
+                                                        borderRadius: 3, 
+                                                        background: c.concepto === "MATRICULA" ? "rgba(59,130,246,0.12)" : c.concepto === "OTROS" ? "rgba(107,114,128,0.15)" : "rgba(16,185,129,0.12)",
+                                                        color: c.concepto === "MATRICULA" ? "#60a5fa" : c.concepto === "OTROS" ? "#9ca3af" : "#34d399",
+                                                        border: c.concepto === "MATRICULA" ? "1px solid rgba(59,130,246,0.15)" : c.concepto === "OTROS" ? "1px solid rgba(107,114,128,0.15)" : "1px solid rgba(16,185,129,0.15)"
+                                                      }}>
+                                                        {c.concepto}
+                                                      </span>
+                                                      <div style={{ fontSize: 10.5, color: "#fff", fontWeight: 700, marginTop: 3 }}>
+                                                        S/ {Number(c.monto).toFixed(2)}
+                                                      </div>
+                                                      {c.descripcion && (
+                                                        <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)", marginTop: 1.5 }}>{c.descripcion}</div>
+                                                      )}
+                                                    </div>
+                                                    <button
+                                                      onClick={() => handleDeleteCargo(c.id)}
+                                                      style={{
+                                                        background: "transparent", border: "none", color: "rgba(248,113,113,0.5)",
+                                                        padding: 4, cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center"
+                                                      }}
+                                                      title="Eliminar Concepto"
+                                                    >
+                                                      <Trash2 size={12} />
+                                                    </button>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          <button
+                                            onClick={() => openNewCargo(m.id)}
+                                            style={{
+                                              width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                                              borderRadius: 8, padding: "7px 10px", color: "#fff", fontSize: 9.5, fontWeight: 700,
+                                              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+                                              marginTop: "auto"
+                                            }}
+                                          >
+                                            <Plus size={11} /> Agregar Concepto de Cobro
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

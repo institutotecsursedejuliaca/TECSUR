@@ -88,10 +88,10 @@ export default function ModulosView({
   // Estados para búsqueda y paginación de módulos
   const [searchMod, setSearchMod] = useState("");
   const [pageMod, setPageMod] = useState(1);
-  const [pageSizeMod] = useState(6);
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
-  const [viewMode, setViewMode] = useState<"folders" | "flat">("folders");
+  const [viewMode, setViewMode] = useState<"folders" | "flat">("flat");
+  const pageSizeMod = viewMode === "flat" ? 12 : 6;
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [currentSubFolder, setCurrentSubFolder] = useState<string | null>(null);
 
@@ -1740,46 +1740,50 @@ export default function ModulosView({
           )}
 
           {/* Toggle View Mode */}
-          <div style={{ display: "flex", gap: 2, background: "rgba(10,22,44,0.7)", padding: "4px", borderRadius: 10, border: "1px solid rgba(42,109,181,0.22)", height: 40, alignItems: "center", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", gap: 6, background: "rgba(10,22,44,0.7)", padding: "4px", borderRadius: 10, border: "1px solid rgba(42,109,181,0.22)", height: 40, alignItems: "center", boxSizing: "border-box" }}>
             <button
               type="button"
-              title="Vista de Carpetas (Aulas)"
-              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
               style={{
-                background: viewMode === "folders" ? "rgba(42,109,181,0.25)" : "transparent",
+                background: viewMode === "flat" ? "rgba(74,179,216,0.15)" : "transparent",
                 border: "none",
                 borderRadius: 8,
-                width: 32,
-                height: 30,
-                color: viewMode === "folders" ? "#4ab3d8" : "rgba(120, 160, 210, 0.6)",
+                padding: "0 12px",
+                height: 32,
+                color: viewMode === "flat" ? "#4ab3d8" : "rgba(120, 160, 210, 0.65)",
+                fontWeight: viewMode === "flat" ? 700 : 500,
+                fontSize: 11,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 6,
                 transition: "all 0.2s"
               }}
             >
-              <Folder size={15} />
+              <Grid size={13} />
+              VER TODOS (LISTA)
             </button>
             <button
               type="button"
-              title="Vista Plana (Cuadrícula)"
-              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
               style={{
-                background: viewMode === "flat" ? "rgba(42,109,181,0.25)" : "transparent",
+                background: viewMode === "folders" ? "rgba(74,179,216,0.15)" : "transparent",
                 border: "none",
                 borderRadius: 8,
-                width: 32,
-                height: 30,
-                color: viewMode === "flat" ? "#4ab3d8" : "rgba(120, 160, 210, 0.6)",
+                padding: "0 12px",
+                height: 32,
+                color: viewMode === "folders" ? "#4ab3d8" : "rgba(120, 160, 210, 0.65)",
+                fontWeight: viewMode === "folders" ? 700 : 500,
+                fontSize: 11,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: 6,
                 transition: "all 0.2s"
               }}
             >
-              <Grid size={15} />
+              <Folder size={13} />
+              ORGANIZAR POR CARPETAS
             </button>
           </div>
 

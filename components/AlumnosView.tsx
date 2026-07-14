@@ -20,6 +20,7 @@ import {
   MapPin,
   Users,
   Layers,
+  Download,
 } from "lucide-react";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
@@ -63,6 +64,10 @@ interface Modulo {
   carrera_id?: string | null;
   carreras?: { id: string; nombre: string } | null;
   fecha_fin: string;
+  fecha_inicio?: string | null;
+  aula?: string | null;
+  local?: string | null;
+  modalidad?: string | null;
 }
 
 interface PaginatedResponse {
@@ -174,6 +179,71 @@ export default function AlumnosView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [carreraFilter, setCarreraFilter] = useState("");
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  async function exportAlumnosToCSV() {
+    setExportingCsv(true);
+    try {
+      const params = new URLSearchParams({
+        search: searchInput.trim(),
+        carrera: carreraFilter,
+        page: "1",
+        pageSize: "100000"
+      });
+      const res = await fetch(`/api/alumnos?${params}`);
+      const json = await res.json();
+      const allAlums: Alumno[] = json.data || [];
+      
+      const headers = [
+        "Codigo", "DNI", "Apellidos", "Nombres", "Carrera", 
+        "Celular", "Telefono", "Correo", "Fecha Nacimiento", 
+        "Nac Departamento", "Direccion", "Colegio", 
+        "Apoderado", "Parentesco", "Apoderado Celular"
+      ];
+      
+      const csvRows = [
+        headers.join(","),
+        ...allAlums.map(a => {
+          const row = [
+            a.codigo || "—",
+            a.dni || "—",
+            a.apellidos || "—",
+            a.nombres || "—",
+            a.carrera || "—",
+            a.celular || "—",
+            a.telefono || "—",
+            a.correo || "—",
+            a.fecha_nacimiento || "—",
+            a.nac_departamento || "—",
+            a.direccion || "—",
+            a.colegio || "—",
+            a.apoderado_nombre || "—",
+            a.apoderado_parentesco || "—",
+            a.apoderado_celular || "—"
+          ];
+          return row.map(val => {
+            const escaped = ('' + val).replace(/"/g, '""');
+            return `"${escaped}"`;
+          }).join(",");
+        })
+      ];
+      
+      const csvContent = "\uFEFF" + csvRows.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `alumnos_tecsur_${new Date().toISOString().split("T")[0]}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Error al exportar alumnos", err);
+    } finally {
+      setExportingCsv(false);
+    }
+  }
 
   // ── Modales ──
   const [modalAlumno, setModalAlumno] = useState(false);
@@ -546,10 +616,35 @@ export default function AlumnosView() {
             padding: "14px 20px",
             borderBottom: "1px solid rgba(42,109,181,0.14)",
             display: "flex", alignItems: "center", justifyContent: "space-between",
+            flexWrap: "wrap", gap: 10
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#dbeafe" }}>
-              Lista de Alumnos
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#dbeafe" }}>
+                Lista de Alumnos
+              </span>
+              <button
+                type="button"
+                onClick={exportAlumnosToCSV}
+                disabled={exportingCsv}
+                style={{
+                  background: "rgba(52,211,153,0.1)",
+                  border: "1px solid rgba(52,211,153,0.2)",
+                  color: "#34d399",
+                  height: 28,
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: exportingCsv ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  opacity: exportingCsv ? 0.6 : 1
+                }}
+              >
+                <Download size={11} /> {exportingCsv ? "Exportando..." : "Exportar Excel"}
+              </button>
+            </div>
             <span style={{ fontSize: 12, color: "rgba(74,179,216,0.5)" }}>
               Página {page} de {totalPages}
             </span>
@@ -854,11 +949,23 @@ export default function AlumnosView() {
                 <option value="">— Seleccionar módulo —</option>
                 {modulos
                   .filter(m => (!matriculaTarget || m.carreras?.nombre === matriculaTarget.carrera) && new Date().toLocaleDateString('sv-SE') <= m.fecha_fin)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nombre} {m.horario ? `(${m.horario})` : ""}
-                    </option>
-                  ))}
+                  .map((m) => {
+                    const fInicio = m.fecha_inicio ? new Date(m.fecha_inicio + "T00:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }) : "";
+                    const fFin = m.fecha_fin ? new Date(m.fecha_fin + "T00:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: '2-digit' }) : "";
+                    const datesStr = fInicio && fFin ? `${fInicio} a ${fFin}` : "";
+                    const details = [
+                      m.aula ? `Aula: ${m.aula}` : null,
+                      datesStr ? `Fechas: ${datesStr}` : null,
+                      m.horario ? `Turno: ${m.horario}` : null,
+                      m.modalidad ? `Mod: ${m.modalidad}` : null
+                    ].filter(Boolean).join(" | ");
+
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {m.nombre.toUpperCase()} {details ? `(${details})` : ""}
+                      </option>
+                    );
+                  })}
               </select>
               <ChevronDown size={13} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "rgba(74,179,216,0.5)" }} />
             </div>
