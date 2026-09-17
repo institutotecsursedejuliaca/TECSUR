@@ -9,11 +9,39 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 declare global {
   // eslint-disable-next-line no-var
   var __supabaseClient: SupabaseClient | undefined
+  // eslint-disable-next-line no-var
+  var __supabaseAdminClient: SupabaseClient | undefined
 }
 
 export const supabase: SupabaseClient =
   globalThis.__supabaseClient ??
   (globalThis.__supabaseClient = createClient(supabaseUrl, supabaseAnonKey))
+
+function getAdminClient(): SupabaseClient {
+  if (globalThis.__supabaseAdminClient) {
+    return globalThis.__supabaseAdminClient
+  }
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY no está configurada en las variables de entorno.')
+  }
+  const client = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+  globalThis.__supabaseAdminClient = client
+  return client
+}
+
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const admin = getAdminClient()
+    const val = Reflect.get(admin, prop, receiver)
+    return typeof val === 'function' ? val.bind(admin) : val
+  },
+})
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

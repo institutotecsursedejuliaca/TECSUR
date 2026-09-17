@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   const alumnoId = request.nextUrl.searchParams.get("alumno_id");
   const moduloId = request.nextUrl.searchParams.get("modulo_id");
 
-  let query = supabase
+  let query = supabaseAdmin
     .from("pensiones")
     .select(`
       *,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("pensiones")
     .insert([
       {

@@ -38,10 +38,16 @@ export default async function ReporteCursoPage({
   const { data: matriculas } = await supabase
     .from("matriculas")
     .select("id, turno, alumnos(dni, nombres, apellidos, carrera)")
-    .eq("modulo_id", moduloId)
-    .order("apellidos", { referencedTable: "alumnos", ascending: true });
+    .eq("modulo_id", moduloId);
 
-  const listaMatriculas = matriculas || [];
+  const listaMatriculas = (matriculas || []).sort((a: any, b: any) => {
+    const apA = (a.alumnos?.apellidos || "").trim().toLowerCase();
+    const apB = (b.alumnos?.apellidos || "").trim().toLowerCase();
+    if (apA !== apB) return apA.localeCompare(apB, "es", { sensitivity: "base" });
+    const nomA = (a.alumnos?.nombres || "").trim().toLowerCase();
+    const nomB = (b.alumnos?.nombres || "").trim().toLowerCase();
+    return nomA.localeCompare(nomB, "es", { sensitivity: "base" });
+  });
   const turnoStr = listaMatriculas.length > 0 ? listaMatriculas[0].turno.replace(/_/g, " ").toUpperCase() : "NO ASIGNADO";
 
   // 3. Obtener notas para este curso

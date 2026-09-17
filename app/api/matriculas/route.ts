@@ -35,6 +35,18 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return Response.json({ error: error.message }, { status: 500 });
+
+  if (Array.isArray(data)) {
+    data.sort((a: any, b: any) => {
+      const apA = (a.alumnos?.apellidos || "").trim().toLowerCase();
+      const apB = (b.alumnos?.apellidos || "").trim().toLowerCase();
+      if (apA !== apB) return apA.localeCompare(apB, "es", { sensitivity: "base" });
+      const nomA = (a.alumnos?.nombres || "").trim().toLowerCase();
+      const nomB = (b.alumnos?.nombres || "").trim().toLowerCase();
+      return nomA.localeCompare(nomB, "es", { sensitivity: "base" });
+    });
+  }
+
   return Response.json(data);
 }
 

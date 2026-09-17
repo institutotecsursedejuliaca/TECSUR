@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const moduloId = searchParams.get("modulo_id");
 
-  let query = supabase.from("cargos_modulo").select("*").order("created_at", { ascending: true });
+  let query = supabaseAdmin.from("cargos_modulo").select("*").order("created_at", { ascending: true });
   if (moduloId) {
     query = query.eq("modulo_id", moduloId);
   }
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("cargos_modulo")
     .insert([
       {
@@ -48,7 +48,7 @@ export async function DELETE(request: NextRequest) {
     return Response.json({ error: "ID requerido" }, { status: 400 });
   }
 
-  const { error } = await supabase.from("cargos_modulo").delete().eq("id", id);
+  const { error } = await supabaseAdmin.from("cargos_modulo").delete().eq("id", id);
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ success: true });
 }

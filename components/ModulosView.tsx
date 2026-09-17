@@ -284,7 +284,16 @@ export default function ModulosView({
     try {
       const resMat = await fetch(`/api/matriculas?modulo_id=${m.id}`);
       const dataMat = await resMat.json();
-      setAlumnosMatriculados(Array.isArray(dataMat) ? dataMat : []);
+      const listMat = Array.isArray(dataMat) ? dataMat : [];
+      listMat.sort((a: any, b: any) => {
+        const apA = (a.alumnos?.apellidos || "").trim().toLowerCase();
+        const apB = (b.alumnos?.apellidos || "").trim().toLowerCase();
+        if (apA !== apB) return apA.localeCompare(apB, "es", { sensitivity: "base" });
+        const nomA = (a.alumnos?.nombres || "").trim().toLowerCase();
+        const nomB = (b.alumnos?.nombres || "").trim().toLowerCase();
+        return nomA.localeCompare(nomB, "es", { sensitivity: "base" });
+      });
+      setAlumnosMatriculados(listMat);
 
       await Promise.all([
         loadCursosModulo(m.id),

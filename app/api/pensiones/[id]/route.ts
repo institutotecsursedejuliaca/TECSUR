@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function PUT(
   request: NextRequest,
@@ -13,7 +13,7 @@ export async function PUT(
     return Response.json({ error: "Faltan campos requeridos" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("pensiones")
     .update({
       nro_recibo,
@@ -37,7 +37,7 @@ export async function DELETE(
 ) {
   const { id } = await params;
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("pensiones")
     .delete()
     .eq("id", id);

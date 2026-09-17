@@ -103,7 +103,16 @@ export default function DocentesView({ docenteId = null }: DocentesViewProps) {
   const loadMatriculas = async (moduloId: string) => {
     const res = await fetch(`/api/matriculas?modulo_id=${moduloId}`);
     const data = await res.json();
-    setMatriculas(Array.isArray(data) ? data : []);
+    const list = Array.isArray(data) ? data : [];
+    list.sort((a: any, b: any) => {
+      const apA = (a.alumnos?.apellidos || "").trim().toLowerCase();
+      const apB = (b.alumnos?.apellidos || "").trim().toLowerCase();
+      if (apA !== apB) return apA.localeCompare(apB, "es", { sensitivity: "base" });
+      const nomA = (a.alumnos?.nombres || "").trim().toLowerCase();
+      const nomB = (b.alumnos?.nombres || "").trim().toLowerCase();
+      return nomA.localeCompare(nomB, "es", { sensitivity: "base" });
+    });
+    setMatriculas(list);
   };
 
   const loadAsistencias = async (moduloId: string, cursoId: string, fecha: string) => {
