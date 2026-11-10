@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Cpu, Plus, X, ChevronDown, Calendar, Clock, GraduationCap, MapPin, User, Pencil, Trash2, Layers, Users, ChevronLeft, Search, Folder, FolderOpen, Grid, UserPlus, UserMinus, ClipboardList } from "lucide-react";
+import { Cpu, Plus, X, ChevronDown, Calendar, Clock, GraduationCap, MapPin, User, Pencil, Trash2, Layers, Users, ChevronLeft, Search, Folder, FolderOpen, Grid, UserPlus, UserMinus, ClipboardList, CheckSquare } from "lucide-react";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
 import AlertDialog from "./AlertDialog";
@@ -90,14 +90,19 @@ export default function ModulosView({
   const [pageMod, setPageMod] = useState(1);
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
-  const [viewMode, setViewMode] = useState<"folders" | "flat">("flat");
+  const [viewMode, setViewMode] = useState<"folders" | "flat">("folders");
   const pageSizeMod = viewMode === "flat" ? 12 : 6;
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
-  const [currentSubFolder, setCurrentSubFolder] = useState<string | null>(null);
+  const [currentStatusFolder, setCurrentStatusFolder] = useState<"en_curso" | "finalizados" | null>(null);
 
   function handleSelectFolder(folderName: string) {
     setCurrentFolder(folderName);
-    setCurrentSubFolder(null);
+    setCurrentStatusFolder(null);
+    setPageMod(1);
+  }
+
+  function handleSelectStatusFolder(statusKey: "en_curso" | "finalizados") {
+    setCurrentStatusFolder(statusKey);
     setPageMod(1);
   }
 
@@ -146,12 +151,12 @@ export default function ModulosView({
   const [changeDocenteId, setChangeDocenteId] = useState<string>("");
   const [submittingChangeDocente, setSubmittingChangeDocente] = useState(false);
 
-  useEffect(() => { loadCarreras(); loadModulos(); setCurrentFolder(null); setCurrentSubFolder(null); }, [carreraId]);
+  useEffect(() => { loadCarreras(); loadModulos(); setCurrentFolder(null); setCurrentStatusFolder(null); }, [carreraId]);
 
   async function loadModulos() {
     setLoading(true);
     const url = carreraId ? `/api/modulos?carrera_id=${carreraId}` : "/api/modulos";
-    const res = await fetch(url);
+    const res = await fetch(url, { cache: "no-store" });
     const data = await res.json();
     setModulos(Array.isArray(data) ? data : []);
     setLoading(false);
@@ -207,7 +212,8 @@ export default function ModulosView({
     const data = await res.json(); setSubmitting(false);
     if (!res.ok) { flash("error", data.error); return; }
     flash("success", `Módulo "${data.nombre}" actualizado`);
-    setEditTarget(null); loadModulos();
+    setEditTarget(null);
+    await loadModulos();
   }
 
   async function handleDelete() {
@@ -243,7 +249,7 @@ export default function ModulosView({
       ...emptyForm,
       carrera_id: carreraId || "",
       aula: (currentFolder && currentFolder !== "SIN AULA") ? currentFolder : "",
-      nombre: currentSubFolder || ""
+      nombre: ""
     });
     setShowForm(true);
   }
@@ -660,10 +666,34 @@ export default function ModulosView({
   }
 
   function getStatus(m: Modulo) {
-    const now = new Date(), s = new Date(m.fecha_inicio), e = new Date(m.fecha_fin);
-    if (now < s) return { label: "Próximo", color: "#fbbf24" };
-    if (now > e) return { label: "Concluido", color: "#94a3b8" };
-    return { label: "En curso", color: "#34d399" };
+    if (!m.fecha_fin) {
+      return { label: "En curso", color: "#34d399", isFinished: false, isUpcoming: false, isInProgress: true };
+    }
+    const now = new Date();
+    // El módulo termina ese mismo día a las 23:59:59.999 de la noche
+    const finDateTime = new Date(m.fecha_fin + "T23:59:59.999");
+
+    if (m.fecha_inicio) {
+      const inicioDateTime = new Date(m.fecha_inicio + "T00:00:00");
+      if (now < inicioDateTime) {
+        return { label: "Próximo", color: "#fbbf24", isFinished: false, isUpcoming: true, isInProgress: false };
+      }
+    }
+
+    if (now > finDateTime) {
+      return { label: "Concluido", color: "#94a3b8", isFinished: true, isUpcoming: false, isInProgress: false };
+    }
+
+    return { label: "En curso", color: "#34d399", isFinished: false, isUpcoming: false, isInProgress: true };
+  }
+
+  function getDaysRemaining(fechaFin?: string | null) {
+    if (!fechaFin) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const fin = new Date(fechaFin + "T00:00:00");
+    const diffTime = fin.getTime() - hoy.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
   const isFormOpen = showForm || !!editTarget;
@@ -1601,36 +1631,54 @@ export default function ModulosView({
 
   const modulesInFolder = currentFolder ? (modulesByAula[currentFolder] || []) : [];
 
-  // Group modules in the current folder by module name (sub-folder)
-  const modulesBySubFolder: Record<string, Modulo[]> = {};
-  modulesInFolder.forEach(m => {
-    const subFolderKey = m.nombre?.trim() ? m.nombre.trim() : "SIN NOMBRE";
-    if (!modulesBySubFolder[subFolderKey]) {
-      modulesBySubFolder[subFolderKey] = [];
+  // Módulos en curso dentro del aula seleccionada (ordenados por los que están por finalizar primero)
+  const modulesEnCursoInAula = modulesInFolder
+    .filter(m => !getStatus(m).isFinished)
+    .sort((a, b) => {
+      const fa = a.fecha_fin || "9999-12-31";
+      const fb = b.fecha_fin || "9999-12-31";
+      return fa.localeCompare(fb);
+    });
+
+  // Módulos finalizados dentro del aula seleccionada (ordenados por fecha fin más reciente primero)
+  const modulesFinalizadosInAula = modulesInFolder
+    .filter(m => getStatus(m).isFinished)
+    .sort((a, b) => {
+      const fa = a.fecha_fin || "0000-00-00";
+      const fb = b.fecha_fin || "0000-00-00";
+      return fb.localeCompare(fa);
+    });
+
+  const activeStatusModules = currentStatusFolder === "en_curso"
+    ? modulesEnCursoInAula
+    : currentStatusFolder === "finalizados"
+      ? modulesFinalizadosInAula
+      : [];
+
+  // Para la vista plana (lista completa), ordenar activos primero por fecha_fin ascendente, luego finalizados
+  const sortedFlatModulos = [...filteredModulos].sort((a, b) => {
+    const finA = getStatus(a).isFinished;
+    const finB = getStatus(b).isFinished;
+    if (!finA && finB) return -1;
+    if (finA && !finB) return 1;
+    if (!finA && !finB) {
+      return (a.fecha_fin || "9999-12-31").localeCompare(b.fecha_fin || "9999-12-31");
     }
-    modulesBySubFolder[subFolderKey].push(m);
+    return (b.fecha_fin || "0000-00-00").localeCompare(a.fecha_fin || "0000-00-00");
   });
 
-  const subFolderNames = Object.keys(modulesBySubFolder).sort((a, b) => {
-    if (a === "SIN NOMBRE") return 1;
-    if (b === "SIN NOMBRE") return -1;
-    return a.localeCompare(b);
-  });
-
-  const modulesInSubFolder = currentSubFolder ? (modulesBySubFolder[currentSubFolder] || []) : [];
-
-  const totalPagesMod = viewMode === "folders" && currentFolder !== null && currentSubFolder !== null
-    ? Math.ceil(modulesInSubFolder.length / pageSizeMod)
+  const totalPagesMod = viewMode === "folders" && currentFolder !== null && currentStatusFolder !== null
+    ? Math.max(1, Math.ceil(activeStatusModules.length / pageSizeMod))
     : viewMode === "flat"
-      ? Math.ceil(filteredModulos.length / pageSizeMod)
+      ? Math.max(1, Math.ceil(sortedFlatModulos.length / pageSizeMod))
       : 1;
 
   const currentPageMod = Math.min(pageMod, totalPagesMod || 1);
 
-  const paginatedModulos = viewMode === "folders" && currentFolder !== null && currentSubFolder !== null
-    ? modulesInSubFolder.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
+  const paginatedModulos = viewMode === "folders" && currentFolder !== null && currentStatusFolder !== null
+    ? activeStatusModules.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
     : viewMode === "flat"
-      ? filteredModulos.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
+      ? sortedFlatModulos.slice((currentPageMod - 1) * pageSizeMod, currentPageMod * pageSizeMod)
       : [];
 
   return (
@@ -1765,7 +1813,7 @@ export default function ModulosView({
           <div style={{ display: "flex", gap: 6, background: "rgba(10,22,44,0.7)", padding: "4px", borderRadius: 10, border: "1px solid rgba(42,109,181,0.22)", height: 40, alignItems: "center", boxSizing: "border-box" }}>
             <button
               type="button"
-              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("flat"); setCurrentFolder(null); setCurrentStatusFolder(null); setPageMod(1); }}
               style={{
                 background: viewMode === "flat" ? "rgba(74,179,216,0.15)" : "transparent",
                 border: "none",
@@ -1787,7 +1835,7 @@ export default function ModulosView({
             </button>
             <button
               type="button"
-              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentSubFolder(null); setPageMod(1); }}
+              onClick={() => { setViewMode("folders"); setCurrentFolder(null); setCurrentStatusFolder(null); setPageMod(1); }}
               style={{
                 background: viewMode === "folders" ? "rgba(74,179,216,0.15)" : "transparent",
                 border: "none",
@@ -1965,10 +2013,60 @@ export default function ModulosView({
       ) : (
         <>
           {viewMode === "folders" && currentFolder !== null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              {currentStatusFolder === null ? (
+                <button
+                  type="button"
+                  onClick={() => { setCurrentFolder(null); setCurrentStatusFolder(null); setPageMod(1); }}
+                  className="ts-btn-back"
+                  style={{
+                    background: "#ffffff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    color: "#0f172a",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <ChevronLeft size={14} style={{ strokeWidth: 2.5 }} />
+                  <span>Volver a Aulas</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setCurrentStatusFolder(null); setPageMod(1); }}
+                  className="ts-btn-back"
+                  style={{
+                    background: "#ffffff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    color: "#0f172a",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <ChevronLeft size={14} style={{ strokeWidth: 2.5 }} />
+                  <span>Volver a Estados</span>
+                </button>
+              )}
+
+              <span style={{ color: "rgba(74, 179, 216, 0.45)" }}>|</span>
+
               <button
                 type="button"
-                onClick={() => { setCurrentFolder(null); setCurrentSubFolder(null); }}
+                onClick={() => { setCurrentFolder(null); setCurrentStatusFolder(null); setPageMod(1); }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -1993,20 +2091,22 @@ export default function ModulosView({
                 }}
               >
                 <FolderOpen size={14} />
-                <span>Módulos</span>
+                <span>Aulas</span>
               </button>
+
               <span style={{ color: "rgba(74, 179, 216, 0.45)" }}>/</span>
+
               <button
                 type="button"
-                disabled={currentSubFolder === null}
-                onClick={() => setCurrentSubFolder(null)}
+                disabled={currentStatusFolder === null}
+                onClick={() => { setCurrentStatusFolder(null); setPageMod(1); }}
                 style={{
-                  background: currentSubFolder === null ? "rgba(74, 179, 216, 0.08)" : "transparent",
-                  border: currentSubFolder === null ? "1px solid rgba(74, 179, 216, 0.18)" : "none",
-                  color: currentSubFolder === null ? "#4ab3d8" : "rgba(120, 160, 210, 0.7)",
+                  background: currentStatusFolder === null ? "rgba(74, 179, 216, 0.08)" : "transparent",
+                  border: currentStatusFolder === null ? "1px solid rgba(74, 179, 216, 0.18)" : "none",
+                  color: currentStatusFolder === null ? "#4ab3d8" : "rgba(120, 160, 210, 0.7)",
                   fontSize: 13,
-                  fontWeight: currentSubFolder === null ? 700 : 600,
-                  cursor: currentSubFolder === null ? "default" : "pointer",
+                  fontWeight: currentStatusFolder === null ? 700 : 600,
+                  cursor: currentStatusFolder === null ? "default" : "pointer",
                   padding: "4px 8px",
                   borderRadius: 6,
                   display: "inline-flex",
@@ -2015,24 +2115,30 @@ export default function ModulosView({
                   transition: "all 0.2s"
                 }}
               >
+                <MapPin size={13} />
                 <span>{currentFolder}</span>
               </button>
-              {currentSubFolder !== null && (
+
+              {currentStatusFolder !== null && (
                 <>
                   <span style={{ color: "rgba(74, 179, 216, 0.45)" }}>/</span>
                   <span style={{
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 700,
-                    color: "#4ab3d8",
-                    padding: "4px 8px",
-                    background: "rgba(74, 179, 216, 0.08)",
-                    border: "1px solid rgba(74, 179, 216, 0.18)",
+                    color: currentStatusFolder === "en_curso" ? "#34d399" : "#94a3b8",
+                    padding: "4px 10px",
+                    background: currentStatusFolder === "en_curso" ? "rgba(52, 211, 153, 0.1)" : "rgba(148, 163, 184, 0.1)",
+                    border: currentStatusFolder === "en_curso" ? "1px solid rgba(52, 211, 153, 0.25)" : "1px solid rgba(148, 163, 184, 0.25)",
                     borderRadius: 6,
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 5
+                    gap: 6
                   }}>
-                    {currentSubFolder}
+                    {currentStatusFolder === "en_curso" ? <Clock size={13} /> : <CheckSquare size={13} />}
+                    <span>{currentStatusFolder === "en_curso" ? "MÓDULOS EN CURSO" : "MÓDULOS FINALIZADOS"}</span>
+                  </span>
+                  <span style={{ fontSize: 11, color: "rgba(120,160,210,0.6)", fontWeight: 600 }}>
+                    ({activeStatusModules.length} {activeStatusModules.length === 1 ? "módulo" : "módulos"})
                   </span>
                 </>
               )}
@@ -2040,9 +2146,13 @@ export default function ModulosView({
           )}
 
           {viewMode === "folders" && currentFolder === null ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+            /* Nivel 1: Carpetas por Aula */
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
               {folderNames.map(folderName => {
-                const count = modulesByAula[folderName].length;
+                const aulaMods = modulesByAula[folderName] || [];
+                const countEnCurso = aulaMods.filter(m => !getStatus(m).isFinished).length;
+                const countFin = aulaMods.filter(m => getStatus(m).isFinished).length;
+
                 return (
                   <div
                     key={folderName}
@@ -2059,9 +2169,9 @@ export default function ModulosView({
                     }}
                   >
                     <div style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
+                      width: 46,
+                      height: 46,
+                      borderRadius: 12,
                       background: "rgba(59, 130, 246, 0.12)",
                       border: "1px solid rgba(59, 130, 246, 0.25)",
                       display: "flex",
@@ -2069,191 +2179,316 @@ export default function ModulosView({
                       justifyContent: "center",
                       flexShrink: 0
                     }}>
-                      <Folder size={22} style={{ color: "#60a5fa" }} />
+                      <Folder size={24} style={{ color: "#60a5fa" }} />
                     </div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={folderName}>
                         {folderName}
                       </div>
-                      <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.6)", marginTop: 2 }}>
-                        {count} {count === 1 ? "módulo" : "módulos"}
+                      <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.7)", marginTop: 3 }}>
+                        {aulaMods.length} {aulaMods.length === 1 ? "módulo total" : "módulos totales"}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 4, fontSize: 10 }}>
+                        <span style={{ color: "#34d399", fontWeight: 600 }}>{countEnCurso} en curso</span>
+                        <span style={{ color: "rgba(120,160,210,0.5)" }}>•</span>
+                        <span style={{ color: "#94a3b8", fontWeight: 600 }}>{countFin} finalizados</span>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          ) : viewMode === "folders" && currentFolder !== null && currentSubFolder === null ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
-              {subFolderNames.map(subFolderName => {
-                const count = modulesBySubFolder[subFolderName].length;
-                return (
-                  <div
-                    key={subFolderName}
-                    className="folder-card"
-                    onClick={() => { setCurrentSubFolder(subFolderName); setPageMod(1); }}
-                    style={{
-                      ...card,
-                      padding: "20px 24px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 16,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease-in-out",
-                    }}
-                  >
-                    <div style={{
-                      width: 44,
-                      height: 44,
+          ) : viewMode === "folders" && currentFolder !== null && currentStatusFolder === null ? (
+            /* Nivel 2: Carpetas de Estado dentro del Aula (EN CURSO y FINALIZADOS) */
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+              {/* Carpeta MÓDULOS EN CURSO */}
+              <div
+                className="folder-card"
+                onClick={() => handleSelectStatusFolder("en_curso")}
+                style={{
+                  ...card,
+                  padding: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 18,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease-in-out",
+                  border: "1px solid rgba(52, 211, 153, 0.28)",
+                  background: "rgba(8, 20, 28, 0.85)"
+                }}
+              >
+                <div style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 14,
+                  background: "rgba(52, 211, 153, 0.15)",
+                  border: "1px solid rgba(52, 211, 153, 0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <Folder size={26} style={{ color: "#34d399" }} />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: "#dbeafe" }}>
+                      MODULOS EN CURSO
+                    </span>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "2px 6px",
                       borderRadius: 10,
-                      background: "rgba(16, 185, 129, 0.12)",
-                      border: "1px solid rgba(16, 185, 129, 0.25)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0
+                      background: "rgba(52, 211, 153, 0.2)",
+                      color: "#34d399"
                     }}>
-                      <Folder size={22} style={{ color: "#10b981" }} />
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={subFolderName}>
-                        {subFolderName}
-                      </div>
-                      <div style={{ fontSize: 11, color: "rgba(74, 179, 216, 0.6)", marginTop: 2 }}>
-                        {count} {count === 1 ? "grupo" : "grupos"}
-                      </div>
-                    </div>
+                      ACTIVOS
+                    </span>
                   </div>
-                );
-              })}
+                  <div style={{ fontSize: 12, color: "rgba(52, 211, 153, 0.85)", marginTop: 4, fontWeight: 600 }}>
+                    {modulesEnCursoInAula.length} {modulesEnCursoInAula.length === 1 ? "módulo en curso" : "módulos en curso"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(120, 160, 210, 0.6)", marginTop: 3 }}>
+                    Ordenados por fecha de finalización más próxima
+                  </div>
+                </div>
+              </div>
+
+              {/* Carpeta MÓDULOS FINALIZADOS */}
+              <div
+                className="folder-card"
+                onClick={() => handleSelectStatusFolder("finalizados")}
+                style={{
+                  ...card,
+                  padding: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 18,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease-in-out",
+                  border: "1px solid rgba(148, 163, 184, 0.25)",
+                  background: "rgba(15, 20, 30, 0.85)"
+                }}
+              >
+                <div style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 14,
+                  background: "rgba(148, 163, 184, 0.12)",
+                  border: "1px solid rgba(148, 163, 184, 0.25)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                }}>
+                  <Folder size={26} style={{ color: "#94a3b8" }} />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, color: "#dbeafe" }}>
+                      MODULOS FINALIZADOS
+                    </span>
+                    <span style={{
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: "2px 6px",
+                      borderRadius: 10,
+                      background: "rgba(148, 163, 184, 0.2)",
+                      color: "#94a3b8"
+                    }}>
+                      CONCLUIDOS
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(148, 163, 184, 0.85)", marginTop: 4, fontWeight: 600 }}>
+                    {modulesFinalizadosInAula.length} {modulesFinalizadosInAula.length === 1 ? "módulo finalizado" : "módulos finalizados"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "rgba(120, 160, 210, 0.6)", marginTop: 3 }}>
+                    Historial de módulos concluidos
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
+            /* Nivel 3 o Vista Plana: Tarjetas de Módulos */
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(310px,1fr))", gap: 16 }}>
-              {paginatedModulos.map(m => {
-                const status = getStatus(m);
-                return (
-                  <div key={m.id} className="md-card" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 12, transition: "all .2s" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(59,130,246,0.2),rgba(6,182,212,0.2))", border: "1px solid rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <Cpu size={16} style={{ color: "#60a5fa" }} />
+              {paginatedModulos.length === 0 ? (
+                <div style={{ gridColumn: "1/-1", padding: "40px 20px", textAlign: "center", color: "rgba(74,179,216,0.4)" }}>
+                  <Folder size={40} style={{ margin: "0 auto 10px", opacity: 0.3 }} />
+                  <p style={{ fontSize: 13 }}>No hay módulos en esta carpeta</p>
+                </div>
+              ) : (
+                paginatedModulos.map(m => {
+                  const status = getStatus(m);
+                  const diffDays = getDaysRemaining(m.fecha_fin);
+
+                  return (
+                    <div key={m.id} className="md-card" style={{ ...card, padding: 20, display: "flex", flexDirection: "column", gap: 12, transition: "all .2s" }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 9, background: "linear-gradient(135deg,rgba(59,130,246,0.2),rgba(6,182,212,0.2))", border: "1px solid rgba(59,130,246,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <Cpu size={16} style={{ color: "#60a5fa" }} />
+                          </div>
+                          <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: MODALIDAD_COLORS[m.modalidad], color: MODALIDAD_TEXT[m.modalidad], fontWeight: 600 }}>{m.modalidad.toUpperCase()}</span>
                         </div>
-                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: MODALIDAD_COLORS[m.modalidad], color: MODALIDAD_TEXT[m.modalidad], fontWeight: 600 }}>{m.modalidad.toUpperCase()}</span>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                          {onNavigate && (
+                            <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => onNavigate("docentes")} title="Ir a Panel Docente (Notas y Asistencia)"><GraduationCap size={12} /></button>
+                          )}
+                          <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => openEdit(m)} title="Editar"><Pencil size={12} /></button>
+                          <button className="md-del" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => setDelTarget(m)} title="Eliminar"><Trash2 size={12} /></button>
+                        </div>
                       </div>
-                      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(42,109,181,0.1)", color: status.color, fontWeight: 600 }}>{status.label.toUpperCase()}</span>
-                        {onNavigate && (
-                          <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => onNavigate("docentes")} title="Ir a Panel Docente (Notas y Asistencia)"><GraduationCap size={12} /></button>
-                        )}
-                        <button className="md-action" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid rgba(42,109,181,0.2)", background: "transparent", color: "rgba(74,179,216,0.5)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => openEdit(m)} title="Editar"><Pencil size={12} /></button>
-                        <button className="md-del" style={{ width: 26, height: 26, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "rgba(248,113,113,0.4)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", transition: "all .2s" }} onClick={() => setDelTarget(m)} title="Eliminar"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
 
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre}</div>
-                      {m.carreras && <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={10} />{m.carreras.nombre}</div>}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                        {m.aula && (
-                          <span style={{
-                            fontSize: 10,
-                            padding: "2.5px 8px",
-                            borderRadius: 6,
-                            background: "rgba(99,102,241,0.15)",
-                            color: "#a5b4fc",
-                            border: "1px solid rgba(99,102,241,0.25)",
-                            fontWeight: 600,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                            maxWidth: "100%"
-                          }} title={`Aula: ${m.aula}`}>
-                            <MapPin size={9} style={{ flexShrink: 0 }} />
-                            AULA: {m.aula.toUpperCase()}
-                          </span>
-                        )}
-                        {m.local && (
-                          <span style={{
-                            fontSize: 10,
-                            padding: "2.5px 8px",
-                            borderRadius: 6,
-                            background: "rgba(74,179,216,0.12)",
-                            color: "#7cc8e8",
-                            border: "1px solid rgba(74,179,216,0.22)",
-                            fontWeight: 500,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                            maxWidth: "100%"
-                          }} title={`Sede: ${m.local}`}>
-                            {m.local.toUpperCase()}
-                          </span>
+                      {/* Estado y cuenta regresiva */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(42,109,181,0.1)", color: status.color, fontWeight: 700 }}>
+                          {status.label.toUpperCase()}
+                        </span>
+                        {!status.isFinished && m.fecha_fin && (
+                          <>
+                            {diffDays !== null && diffDays > 0 ? (
+                              <span style={{
+                                fontSize: 9.5,
+                                padding: "2px 7px",
+                                borderRadius: 20,
+                                fontWeight: 700,
+                                background: diffDays <= 7 ? "rgba(245,158,11,0.15)" : "rgba(59,130,246,0.12)",
+                                color: diffDays <= 7 ? "#fbbf24" : "#60a5fa",
+                                border: diffDays <= 7 ? "1px solid rgba(245,158,11,0.25)" : "1px solid rgba(59,130,246,0.18)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3
+                              }}>
+                                <Clock size={10} style={{ flexShrink: 0 }} />
+                                FALTAN {diffDays} {diffDays === 1 ? "DÍA" : "DÍAS"}
+                              </span>
+                            ) : diffDays === 0 ? (
+                              <span style={{
+                                fontSize: 9.5,
+                                padding: "2px 7px",
+                                borderRadius: 20,
+                                fontWeight: 700,
+                                background: "rgba(239,68,68,0.15)",
+                                color: "#f87171",
+                                border: "1px solid rgba(239,68,68,0.25)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3
+                              }}>
+                                <Clock size={10} style={{ flexShrink: 0 }} />
+                                TERMINA HOY (23:59)
+                              </span>
+                            ) : null}
+                          </>
                         )}
                       </div>
+
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#dbeafe", lineHeight: 1.3 }}>{m.nombre}</div>
+                        {m.carreras && <div style={{ fontSize: 11, color: "rgba(74,179,216,0.6)", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><GraduationCap size={10} />{m.carreras.nombre}</div>}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                          {m.aula && (
+                            <span style={{
+                              fontSize: 10,
+                              padding: "2.5px 8px",
+                              borderRadius: 6,
+                              background: "rgba(99,102,241,0.15)",
+                              color: "#a5b4fc",
+                              border: "1px solid rgba(99,102,241,0.25)",
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                              maxWidth: "100%"
+                            }} title={`Aula: ${m.aula}`}>
+                              <MapPin size={9} style={{ flexShrink: 0 }} />
+                              AULA: {m.aula.toUpperCase()}
+                            </span>
+                          )}
+                          {m.local && (
+                            <span style={{
+                              fontSize: 10,
+                              padding: "2.5px 8px",
+                              borderRadius: 6,
+                              background: "rgba(74,179,216,0.12)",
+                              color: "#7cc8e8",
+                              border: "1px solid rgba(74,179,216,0.22)",
+                              fontWeight: 500,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                              maxWidth: "100%"
+                            }} title={`Sede: ${m.local}`}>
+                              {m.local.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.fecha_inicio} → {m.fecha_fin}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion ? `${m.duracion} · ` : ""}{Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
+                        {m.profesor && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><User size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Prof. {m.profesor}</div>}
+                        {m.horario && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Horario: {m.horario}</div>}
+                      </div>
+
+                      <button
+                        className="md-btn-alumnos"
+                        style={{
+                          ...btnS,
+                          marginTop: 10,
+                          width: "100%",
+                          justifyContent: "center",
+                          padding: "8px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          borderRadius: 8,
+                          background: "rgba(52,211,153,0.08)",
+                          border: "1px solid rgba(52,211,153,0.18)",
+                          color: "#34d399",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                        onClick={() => loadAlumnosModulo(m)}
+                      >
+                        <Users size={13} />
+                        VER ALUMNOS DEL MODULO
+                      </button>
+
+                      <ReporteModuloBtn
+                        moduloId={m.id}
+                        text="Descargar Registro (Notas y Asistencia)"
+                        style={{
+                          marginTop: 8,
+                          width: "100%",
+                          justifyContent: "center",
+                          padding: "8px 12px",
+                          height: "auto",
+                          borderRadius: 8,
+                          background: "rgba(251,191,36,0.08)",
+                          border: "1px solid rgba(251,191,36,0.18)",
+                          color: "#fbbf24",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      />
                     </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "rgba(120,160,210,0.7)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Calendar size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.fecha_inicio} → {m.fecha_fin}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />{m.duracion ? `${m.duracion} · ` : ""}{Math.round((new Date(m.fecha_fin).getTime() - new Date(m.fecha_inicio).getTime()) / (1000 * 60 * 60 * 24))} días</div>
-                      {m.profesor && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><User size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Prof. {m.profesor}</div>}
-                      {m.horario && <div style={{ display: "flex", alignItems: "center", gap: 5 }}><Clock size={10} style={{ color: "rgba(74,179,216,0.4)", flexShrink: 0 }} />Horario: {m.horario}</div>}
-                    </div>
-
-                    <button
-                      className="md-btn-alumnos"
-                      style={{
-                        ...btnS,
-                        marginTop: 10,
-                        width: "100%",
-                        justifyContent: "center",
-                        padding: "8px 12px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        borderRadius: 8,
-                        background: "rgba(52,211,153,0.08)",
-                        border: "1px solid rgba(52,211,153,0.18)",
-                        color: "#34d399",
-                        cursor: "pointer",
-                        transition: "all 0.2s"
-                      }}
-                      onClick={() => loadAlumnosModulo(m)}
-                    >
-                      <Users size={13} />
-                      VER ALUMNOS DEL MODULO
-                    </button>
-
-                    <ReporteModuloBtn
-                      moduloId={m.id}
-                      text="Descargar Registro (Notas y Asistencia)"
-                      style={{
-                        marginTop: 8,
-                        width: "100%",
-                        justifyContent: "center",
-                        padding: "8px 12px",
-                        height: "auto",
-                        borderRadius: 8,
-                        background: "rgba(251,191,36,0.08)",
-                        border: "1px solid rgba(251,191,36,0.18)",
-                        color: "#fbbf24",
-                        cursor: "pointer",
-                        transition: "all 0.2s"
-                      }}
-                    />
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           )}
 
           {/* Paginación de módulos */}
-          {((viewMode === "flat") || (viewMode === "folders" && currentFolder !== null && currentSubFolder !== null)) && totalPagesMod > 1 && (
+          {((viewMode === "flat") || (viewMode === "folders" && currentFolder !== null && currentStatusFolder !== null)) && totalPagesMod > 1 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, padding: "0 4px", flexWrap: "wrap", gap: 10 }}>
               <span style={{ fontSize: 12.5, color: "rgba(120,160,210,0.6)" }}>
-                Mostrando {paginatedModulos.length} de {viewMode === "folders" && currentFolder !== null && currentSubFolder !== null ? modulesInSubFolder.length : filteredModulos.length} módulos
+                Mostrando {paginatedModulos.length} de {viewMode === "folders" && currentFolder !== null && currentStatusFolder !== null ? activeStatusModules.length : sortedFlatModulos.length} módulos
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <button

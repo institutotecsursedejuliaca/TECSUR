@@ -29,6 +29,7 @@ import ModulosView from "@/components/ModulosView";
 import IngresoView from "@/components/IngresoView";
 import CarrerasView from "@/components/CarrerasView";
 import GestionDocentesView from "@/components/GestionDocentesView";
+import ModuloAlarma from "@/components/ModuloAlarma";
 
 // ── Paleta TECSUR ─────────────────────────────────────────────
 // Azul acero   : #2a6db5
@@ -641,6 +642,8 @@ export default function HomePage() {
 
         {/* ── Header ── */}
         <header style={{
+          position: "relative",
+          zIndex: 100,
           display: "flex", alignItems: "center", gap: 16,
           padding: "0 28px",
           minHeight: 62,
@@ -703,6 +706,13 @@ export default function HomePage() {
           </div>
 
           <div style={{ flex: 1 }} />
+
+          {/* Alarma de módulos por terminar */}
+          <ModuloAlarma
+            onNavigateModulo={(view) => setActiveView(view as any)}
+            docenteId={docenteId}
+            userRole={userRole}
+          />
 
           {/* Estado del sistema */}
           <div style={{

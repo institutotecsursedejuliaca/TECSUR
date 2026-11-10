@@ -107,9 +107,14 @@ export default function CarrerasView() {
   }
 
   function getStatus(m: any) {
-    const now = new Date(), s = new Date(m.fecha_inicio), e = new Date(m.fecha_fin);
-    if (now < s) return { label: "Próximo", color: "#fbbf24" };
-    if (now > e) return { label: "Concluido", color: "#94a3b8" };
+    if (!m.fecha_fin) return { label: "En curso", color: "#34d399" };
+    const now = new Date();
+    const finDateTime = new Date(m.fecha_fin + "T23:59:59.999");
+    if (m.fecha_inicio) {
+      const inicioDateTime = new Date(m.fecha_inicio + "T00:00:00");
+      if (now < inicioDateTime) return { label: "Próximo", color: "#fbbf24" };
+    }
+    if (now > finDateTime) return { label: "Concluido", color: "#94a3b8" };
     return { label: "En curso", color: "#34d399" };
   }
 
